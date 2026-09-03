@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		4F5B0A983049CFAE00D02F2D /* 핻.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "핻.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Threei_Assignment.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		4F5B0A993049CFAE00D02F2D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4F5B0A983049CFAE00D02F2D /* 핻.app */,
+				4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4F5B0A973049CFAE00D02F2D /* 핻 */ = {
+		4F5B0A973049CFAE00D02F2D /* Threei_Assignment */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "핻" */;
+			buildConfigurationList = 4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "Threei_Assignment" */;
 			buildPhases = (
 				4F5B0A943049CFAE00D02F2D /* Sources */,
 				4F5B0A953049CFAE00D02F2D /* Frameworks */,
@@ -67,7 +67,7 @@
 			packageProductDependencies = (
 			);
 			productName = Threei_Assignment;
-			productReference = 4F5B0A983049CFAE00D02F2D /* 핻.app */;
+			productReference = 4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4F5B0A973049CFAE00D02F2D /* 핻 */,
+				4F5B0A973049CFAE00D02F2D /* Threei_Assignment */,
 			);
 		};
 /* End PBXProject section */
@@ -330,7 +330,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "핻" */ = {
+		4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "Threei_Assignment" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4F5B0AA43049CFAF00D02F2D /* Debug */,
