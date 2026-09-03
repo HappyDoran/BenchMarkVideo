@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Threei_Assignment.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F5B0B023049D00000D02F2D /* Threei_AssignmentTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Threei_AssignmentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +17,22 @@
 			path = Threei_Assignment;
 			sourceTree = "<group>";
 		};
+		4F5B0B033049D00000D02F2D /* Threei_AssignmentTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Threei_AssignmentTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		4F5B0A953049CFAE00D02F2D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F5B0B053049D00000D02F2D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				4F5B0A9A3049CFAE00D02F2D /* Threei_Assignment */,
+				4F5B0B033049D00000D02F2D /* Threei_AssignmentTests */,
 				4F5B0A993049CFAE00D02F2D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */,
+				4F5B0B023049D00000D02F2D /* Threei_AssignmentTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +85,29 @@
 			productReference = 4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */;
 			productType = "com.apple.product-type.application";
 		};
+		4F5B0B013049D00000D02F2D /* Threei_AssignmentTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F5B0B093049D00000D02F2D /* Build configuration list for PBXNativeTarget "Threei_AssignmentTests" */;
+			buildPhases = (
+				4F5B0B043049D00000D02F2D /* Sources */,
+				4F5B0B053049D00000D02F2D /* Frameworks */,
+				4F5B0B063049D00000D02F2D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4F5B0B083049D00000D02F2D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4F5B0B033049D00000D02F2D /* Threei_AssignmentTests */,
+			);
+			name = Threei_AssignmentTests;
+			packageProductDependencies = (
+			);
+			productName = Threei_AssignmentTests;
+			productReference = 4F5B0B023049D00000D02F2D /* Threei_AssignmentTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +120,10 @@
 				TargetAttributes = {
 					4F5B0A973049CFAE00D02F2D = {
 						CreatedOnToolsVersion = 26.1.1;
+					};
+					4F5B0B013049D00000D02F2D = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = 4F5B0A973049CFAE00D02F2D;
 					};
 				};
 			};
@@ -100,12 +142,20 @@
 			projectRoot = "";
 			targets = (
 				4F5B0A973049CFAE00D02F2D /* Threei_Assignment */,
+				4F5B0B013049D00000D02F2D /* Threei_AssignmentTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		4F5B0A963049CFAE00D02F2D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F5B0B063049D00000D02F2D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +172,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4F5B0B043049D00000D02F2D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		4F5B0B073049D00000D02F2D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4F5B0A903049CFAE00D02F2D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4F5B0A973049CFAE00D02F2D;
+			remoteInfo = Threei_Assignment;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		4F5B0B083049D00000D02F2D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4F5B0A973049CFAE00D02F2D /* Threei_Assignment */;
+			targetProxy = 4F5B0B073049D00000D02F2D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		4F5B0AA13049CFAF00D02F2D /* Debug */ = {
@@ -318,6 +393,48 @@
 			};
 			name = Release;
 		};
+		4F5B0B0A3049D00000D02F2D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U6CCD5BT22;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doran.threei.assignmentTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Threei_Assignment.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Threei_Assignment";
+			};
+			name = Debug;
+		};
+		4F5B0B0B3049D00000D02F2D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U6CCD5BT22;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doran.threei.assignmentTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Threei_Assignment.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Threei_Assignment";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -335,6 +452,15 @@
 			buildConfigurations = (
 				4F5B0AA43049CFAF00D02F2D /* Debug */,
 				4F5B0AA53049CFAF00D02F2D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4F5B0B093049D00000D02F2D /* Build configuration list for PBXNativeTarget "Threei_AssignmentTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4F5B0B0A3049D00000D02F2D /* Debug */,
+				4F5B0B0B3049D00000D02F2D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
