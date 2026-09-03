@@ -47,3 +47,4 @@ ARView(RealityKit, mesh 시각화) ─ session ─► ARSessionManager (delegate
 - LLM 제안을 기각/수정한 사례 발생 즉시 `LLM_REPORT.md`에 추가 (몰아 쓰기 금지).
 - 설계 판단(격자 해상도, 스로틀, 필터 밴드 등) 변경 시 DESIGN.md 근거 갱신.
 - 커밋은 의미 단위. 메시지에 작성 주체 표기: `[llm]`, `[human]`, `[llm+human]`.
+- 커밋 메시지에 `Co-Authored-By`, `Claude-Session` 등 AI 트레일러 **넣지 말 것** (작성 주체는 위 태그로만 표기).
