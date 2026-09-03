@@ -1,0 +1,159 @@
+# Threei_Assignment — 실시간 공간 스캔 & Top-Down Minimap
+
+iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 위에 스캔 영역을 표시하고, 동시에 위에서 내려다본 2D 미니맵(occupancy grid)을 그린다. 순수 Swift, SwiftUI + ARKit + RealityKit, 서드파티 의존성 없음.
+
+| 항목 | 값 |
+| --- | --- |
+| 개발 환경 | Xcode 26.1, Swift 6 언어 모드, iOS 17.0 이상 (명세 권장 iOS 16 → 17로 상향: `@Observable`이 iOS 17부터) |
+| 테스트 기기 | iPhone 15 Pro (LiDAR). iOS 버전: 실기기 검증 시 기입 |
+| 아키텍처 | MVVM (`App / Model / ViewModel / View`) — 근거 `DESIGN.md` 1.1절 |
+| 산출 문서 | 설계 `DESIGN.md` · LLM 활용 리포트 `LLM_REPORT.md` · 이 README |
+| 에이전트 문서 | 작업 규범 `AGENTS.md` · 체계 설명 `docs/AI_AGENT_HARNESS.md` |
+
+## 데모 영상
+
+실기기 검증 후 링크 추가 예정 (3분 이내, 스캔 시작 → 이동하며 미니맵 채워짐 → 종료).
+
+## 실행 방법
+
+```bash
+git clone <repo>
+cd Threei_Assignment
+open Threei_Assignment.xcodeproj
+```
+
+1. Xcode에서 `Threei_Assignment` scheme을 선택한다 (공유 scheme, 저장소에 포함).
+2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.threei.assignment`, 필요하면 변경).
+3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
+4. 첫 실행 시 카메라 권한을 허용한다. 화면 하단 "스캔 시작"을 누르면 우상단 미니맵이 채워진다.
+
+시뮬레이터에서는 `sceneDepth`가 nil이라 "지원되지 않는 기기" 화면이 뜬다. 단위 테스트만 시뮬레이터에서 돈다.
+
+## 구현 체크리스트
+
+요구사항 번호는 `docs/spec/requirements.md` 기준. 상태: ✅ 구현·검증 / 🔶 구현, 실기기 미검증 / ❌ 미구현.
+
+### R1. 실시간 공간 스캔
+
+| 항목 | 상태 | 구현 |
+| --- | --- | --- |
+| R1-1 실시간 스캔, 화면 반영 | 🔶 | RealityKit `sceneReconstruction` mesh 와이어프레임 (`View/ARPreviewView.swift`) |
+| R1-2 시작 / 일시정지 / 재개 / 초기화 | 🔶 | `ViewModel/ScanViewModel.swift`. 일시정지는 세션 유지·누적만 중단, 초기화는 격자·궤적·트래킹 리셋 |
+| R1-3 상태 피드백 | 🔶 | 상태 배지(대기/스캔 중/일시정지), 누적 포인트 수, 관측 셀 수, 트래킹 경고 |
+| R1-4 트래킹 실패 처리 | 🔶 | `cameraDidChangeTrackingState` 5종 메시지, 세션 중단 배지, 세션 실패 안내 화면. 앱은 계속 동작 |
+
+### R2. Top-Down 실시간 Minimap
+
+| 항목 | 상태 | 구현 |
+| --- | --- | --- |
+| R2-1 실시간 갱신 | 🔶 | 콜백마다 격자 누적 → 스냅샷 발행 (약 10Hz). 사후 일괄 처리 단계 없음 |
+| R2-2 Top-down 투영 | 🔶 | 월드 xz 평면, 5cm 셀 400×400 occupancy grid (`Model/OccupancyGrid.swift`) |
+| R2-3 현재 위치·방향 | 🔶 | 삼각형 마커 + 시야 부채꼴 (`View/MinimapView.swift`), heading은 단위 테스트로 고정 |
+| R2-4 오버레이 배치·전체화면 | 🔶 | 우상단 150pt 오버레이, 탭하면 전체화면, 배경 탭·닫기로 복귀 |
+| R2-5 좌표계 기준 명시 | ✅ | 월드 고정 north-up. 이유는 `DESIGN.md` 3.3절 |
+| 선택: auto-fit | 🔶 | 관측 영역 + 카메라를 포함하는 정사각 crop (`Model/MinimapRenderer.swift`) |
+| 선택: 이동 궤적 | 🔶 | 0.25m 간격 궤적선 |
+| 선택: 팬 / 줌 / 회전 | ❌ | 전체화면 전환만. `DESIGN.md` 13절 |
+| 선택: 거리·면적 측정 | ❌ | |
+
+### R3. 실시간 성능
+
+| 항목 | 상태 | 구현 |
+| --- | --- | --- |
+| R3-1 UI 30fps 이상 | 🔶 | 깊이 처리를 전용 직렬 큐, 100ms 스로틀, stride 4 샘플링. 측정 전 |
+| R3-2 3분 이상 연속 스캔 | 🔶 | 고정 격자(약 640KB)로 메모리 상한 고정. 측정 전 |
+| R3-3 직접 측정한 수치 | ❌ | **미측정.** 측정 방법과 결과표는 `DESIGN.md` 10절. 실기기 확인 후 기입 |
+
+### R4. UI/UX
+
+| 항목 | 상태 | 구현 |
+| --- | --- | --- |
+| R4-1 설명 없이 사용 가능 | 🔶 | 화면에 버튼 하나("스캔 시작") + 미니맵. 상태별로 버튼이 바뀜 |
+| R4-2 권한·미지원·트래킹 안내 | 🔶 | 권한 거부 → 안내 + 설정 열기, 미지원 기기 → 안내 화면, 트래킹 불량 → 경고 배지 |
+| R4-3 조작 흐름 | 🔶 | 시작 → (일시정지 ↔ 재개) → 초기화 단일 흐름 |
+
+### 선택 요구사항 (가산점)
+
+| 항목 | 상태 |
+| --- | --- |
+| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 14건 — 좌표 변환·버퍼 필터·격자 누적·crop |
+| auto-fit, 이동 궤적 | 🔶 위 R2 표 |
+| 3D 재구성 뷰어, 내보내기, 거리·면적 측정, 성능 최적화 전후 비교, 드리프트 보정 | ❌ 필수 항목의 실기기 검증이 먼저 |
+
+## 아키텍처
+
+```
+ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.processing)   [Model]
+                                     │ 스로틀(≥100ms) + 샘플링(stride 4, confidence≥medium)
+                                     ▼
+                          DepthFrameProcessor (unprojection, 순수 함수 — 단위 테스트)  [Model]
+                                     ▼
+                          OccupancyGrid (5cm cell, 고정 400×400, floor/wall hit)    [Model]
+                                     ▼
+                          MinimapRenderer (used-bounds crop → MinimapSnapshot)      [Model]
+                                     ▼  onSnapshot / onEvent (Sendable)
+                          ScanViewModel (@Observable, MainActor)                    [ViewModel]
+                                     ▼
+                          ContentView · MinimapView · ARPreviewView                 [View]
+```
+
+Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다. 계층 경계가 곧 스레드 경계라서 MVVM을 택했다 — 파이프라인 전 과정, 좌표 변환, 바닥·천장 필터, 격자 해상도 근거, 스레딩, 성능은 `DESIGN.md`. 좌표계·동시성 규약은 `TECH_RULES.md`. 파일 배치는 `docs/architecture/folder-structure.md`.
+
+## 사용한 라이브러리·오픈소스
+
+- 서드파티 라이브러리 없음. Apple 시스템 프레임워크만 사용: ARKit, RealityKit, SwiftUI, Observation, CoreGraphics, simd, XCTest.
+- 참고한 코드: Apple 샘플 [Visualizing a Point Cloud Using Scene Depth](https://developer.apple.com/documentation/arkit/displaying-a-point-cloud-using-scene-depth)의 역투영 방식(intrinsics 역행렬 + y·z 부호 반전). 코드를 복사하지 않고 `Model/DepthFrameProcessor.swift`에 CPU 버전으로 다시 작성했다. Metal 렌더러는 가져오지 않았다 (`DESIGN.md` 4절). 라이선스: Apple Sample Code License (개념 참고 범위).
+
+## 성능 측정 결과 (R3)
+
+**미측정.** 측정 방법(Instruments signpost·Allocations·FPS 게이지)과 결과표는 `DESIGN.md` 10절에 있고 실기기 확인 후 채운다. 설계상 예산: 콜백 <10ms, 프레임당 ≤3,072점, 격자 메모리 640KB 고정.
+
+## 알려진 버그·제약
+
+- 실기기 검증 전이다. 좌표 스케일(벽 길이)과 높이 밴드 값은 단위 테스트로 규약만 고정했고 실제 공간에서 확인하지 않았다.
+- 드리프트를 보정하지 않는다. 장시간 스캔 시 같은 벽이 두 겹으로 보일 수 있다 (`DESIGN.md` 12절).
+- 바닥·천장 구분이 스캔 시작 시 기기 높이(바닥 위 약 1.2~1.5m)에 의존한다. 앉거나 바닥 가까이에서 시작하면 벽이 바닥으로 분류될 수 있다.
+- 격자는 시작 위치 중심 20m × 20m 고정. 밖의 점은 버린다.
+- 트래킹이 불안정한 동안에도 누적을 멈추지 않는다 (경고만 표시).
+- 미니맵 팬·줌·회전 없음. 전체화면 전환만.
+
+## 검증
+
+코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
+
+```bash
+# 1. 단위 테스트 (Model 순수 함수, 시뮬레이터) — 14건
+xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
+
+# 2. 실기기 타깃 컴파일 (서명 없이)
+xcodebuild -project Threei_Assignment.xcodeproj -scheme Threei_Assignment \
+  -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+
+# 3. 구조·문서 계약 검사 (MVVM 배치, 계층 import 규칙, 테스트 배치, symlink, 문서 경로)
+scripts/check-structure.sh
+```
+
+시뮬레이터 이름은 `xcrun simctl list devices available`에서 있는 것으로 바꾼다.
+
+## 실기기 수동 검증 매트릭스
+
+런타임 동작을 바꾼 커밋은 아래 시나리오 중 영향받는 항목을 실기기에서 확인하고 결과를 커밋 본문에 남긴다. "확인 방법"이 실패 판정 기준이다.
+
+| 시나리오 | 요구사항 | 확인 방법 |
+| --- | --- | --- |
+| 카메라 권한 거부 | R4-2 | 첫 실행에서 거부 → "실행할 수 없습니다" 화면과 설정 열기 링크 표시 |
+| 미지원 기기 | R4-2 | 비-LiDAR 기기 또는 시뮬레이터 → "지원되지 않는 기기" 화면 |
+| 스캔 시작 | R1-1, R1-3 | 시작 후 상태가 "스캔 중", 포인트·셀 카운트 증가, 카메라 위 mesh 와이어프레임 표시 |
+| 일시정지·재개 | R1-2 | 카운트 증가 멈춤, 위치 마커는 계속 움직임. 재개 시 누적 이어짐 |
+| 초기화 | R1-2 | 미니맵 비워지고 "대기" 상태, 궤적 사라짐 |
+| 실시간 갱신 | R2-1 | 걸으면서 미니맵이 1초 안에 따라 채워짐 |
+| 미니맵 방향 | R2-3, R2-5 | 기기를 제자리에서 회전 → 맵은 고정, 마커 삼각형만 회전 (north-up) |
+| 벽 스케일 | R2-2 | 알려진 길이의 벽(예: 3m)을 스캔 → 미니맵 상 셀 수 × 0.05m가 ±10% 이내 |
+| 바닥·천장 필터 | R2-2 | 바닥을 향해 스캔해도 벽(밝은 픽셀)이 생기지 않고, 천장은 무시 |
+| 전체화면 전환 | R2-4 | 미니맵 탭 → 전체화면, 배경 탭 → 복귀 |
+| 트래킹 경고 | R1-4 | 기기를 빠르게 흔듦 → "기기를 천천히 움직여 주세요" 배지, 앱 지속 |
+| 세션 중단 | R1-4 | 앱을 백그라운드로 보냈다가 복귀 → "세션이 중단되었습니다" 배지가 떴다가 사라짐 |
+| 성능 | R3 | `DESIGN.md` 10절 측정 — FPS ≥30, 콜백 <10ms, 3분 스캔 중 강제 종료·메모리 경고 없음 |
+
+결과 기록 형식: `기기 × iOS × 시나리오 × 결과(통과/실패/미검증)`. 실패는 `LLM_REPORT.md` 사례 후보이며, 파라미터를 바꾸면 `DESIGN.md` 근거를 갱신한다.

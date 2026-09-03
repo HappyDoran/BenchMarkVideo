@@ -1,24 +1,28 @@
 # LLM 활용 리포트
 
-> 작성 규칙: 사례 발생 즉시 추가 (몰아 쓰기 금지). 제출 전 최종 정리.
+> 작성 규칙: 사례 발생 즉시 추가 (몰아 쓰기 금지). 최종 정리.
 
 ## 1. 사용한 도구와 워크플로우
 
 - **도구**: Claude Code (CLI)
-- **워크플로우**: 과제 명세 전체를 컨텍스트로 제공 → 브리핑/아키텍처 합의 → 프로젝트 `CLAUDE.md`에 좌표계·동시성 규약을 먼저 고정 → 모듈 단위로 구현 위임 → 매 단계 `xcodebuild` 컴파일 검증 → 실기기 테스트 결과를 피드백으로 재투입.
+- **워크플로우**: 요구사항 명세 전체를 컨텍스트로 제공 → 브리핑/아키텍처 합의 → 프로젝트 `CLAUDE.md`에 좌표계·동시성 규약을 먼저 고정 → 모듈 단위로 구현 위임 → 매 단계 `xcodebuild` 컴파일 검증 → 실기기 테스트 결과를 피드백으로 재투입.
 - **에이전트 컨텍스트 세팅** (`CLAUDE.md`): LLM이 자신 있게 틀리는 영역(좌표 변환, column-major, intrinsics 방향)을 규약으로 박아 두고, 동시성 규칙(scan.processing 큐 전용 접근)과 커밋 표기 규칙(`[llm]`/`[human]`/`[llm+human]`)을 명시. 의도: 세션이 바뀌어도 같은 규약으로 작업 이어가기 + 리포트 작성 근거를 커밋 로그에 남기기.
+- **문서 체계 확장** (세션 2): `CLAUDE.md` 한 파일을 `AGENTS.md` 라우터(CLAUDE.md는 symlink) + 소유 문서(`TECH_RULES.md`, `DESIGN.md`, `README.md`) + skill + `scripts/check-structure.sh`로 분리. Claude·Codex가 같은 본문을 읽는다. 구조는 `docs/AI_AGENT_HARNESS.md`.
 
 ## 2. 역할 구분
 
 | 파일/모듈 | 작성 주체 | 비고 |
 |---|---|---|
-| `Scan/DepthFrameProcessor.swift` | LLM 초안 | unprojection 수식은 Apple 샘플의 flipYZ 방식 채택. 실기기 검증 예정 (벽 길이 비교) |
-| `Scan/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정 |
-| `Minimap/OccupancyGrid.swift` | LLM 초안 | 격자 해상도(5cm)·높이 밴드 파라미터는 실기기 튜닝 예정 |
-| `Minimap/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
-| `Minimap/MinimapView.swift`, `UI/*`, `ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
-| `ScanViewModel.swift` | LLM 생성 | |
-| 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택) | 사람 (LLM 브리핑 기반 합의) | 근거는 DESIGN.md |
+| `Model/DepthFrameProcessor.swift` | LLM 초안 | unprojection 수식은 Apple 샘플의 flipYZ 방식 채택. 실기기 검증 예정 (벽 길이 비교) |
+| `Model/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정 |
+| `Model/OccupancyGrid.swift` | LLM 초안 | 격자 해상도(5cm)·높이 밴드 파라미터는 실기기 튜닝 예정 |
+| `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
+| `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
+| `ViewModel/ScanViewModel.swift` | LLM 생성 | 세션 attach 중계는 MVVM 재배치 때 추가 (사례 4) |
+| `Threei_AssignmentTests/*` (14건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 6). 케이스 선정은 좌표 규약 문서 기준 |
+| `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 명세 대응 절 | LLM 생성 | 세션 2에서 명세 원문을 그대로 제공 → 요구사항 번호·산출물 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 최종결과물 비디오는 프레임을 추출해 LLM이 직접 비교 |
+| 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
+| 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | LLM 초안 + 사람 | 다른 프로젝트의 Agent 작업 지원 체계를 순수 Swift 단일 타깃 규모에 맞게 축소. 구조는 사람이 지정, 본문은 LLM |
 
 ## 3. LLM이 틀렸던 지점 / 수정 사례
 
@@ -36,8 +40,24 @@
 - **무엇**: `MinimapRenderer`에서 `Data` 사용하며 `Foundation` import 누락 (LLM이 CoreGraphics 경유 암묵 import 가정). Xcode 26 신규 프로젝트는 `SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES`라 실패.
 - **수정**: 명시 import 추가.
 
+### 사례 4 — 기능 단위 폴더링을 MVVM 계층 폴더링으로 교체 (구조 수정, 사람 결정)
+- **무엇**: LLM 초안은 `Scan/`, `Minimap/`, `UI/` 기능 단위로 파일을 배치. 사람이 MVVM(`App/Model/ViewModel/View`) 계층 기준으로 재배치를 지시.
+- **왜**: 이 앱의 핵심 제약은 큐 격리(MainActor vs `scan.processing`)인데, 기능 폴더링은 어느 파일이 어느 스레드에서 도는지 드러내지 않았다. 계층 폴더링은 격리 경계를 폴더로 보이게 하고 배치 규칙을 스크립트로 검사할 수 있게 한다. 대안 비교는 `DESIGN.md` 1.1절.
+- **재배치 중 발견한 LLM 코드 위반**: `ARPreviewView`(View)가 `ARSessionManager`(Model)의 `attach(to:)`를 직접 호출하고 있었다. View → ViewModel → Model 단방향을 깨는 구조라 `ScanViewModel.attach(session:)` 중계 메서드를 두고 View는 `ARSession` 콜백만 받도록 수정. `ScanViewModel`의 불필요한 `import SwiftUI`도 제거.
+- **재발 방지**: `scripts/check-structure.sh`가 View의 Model 객체 참조, Model의 UI 프레임워크 import, `nonisolated` 누락을 grep으로 검사. 같은 스크립트가 이 리포트의 옛 경로(`Scan/…`, `Minimap/…`)도 잡아냈다.
+
+### 사례 5 — 참조 프로젝트 잔재가 문서에 섞임 (내용 수정)
+- **무엇**: 문서 체계를 다른 프론트엔드 mono-repo의 Agent 체계에서 착안해 옮기면서, LLM이 `docs/AI_AGENT_HARNESS.md`에 "참조 프로젝트 대비 뺀 것: workspace별 AGENTS, feature README, 브리지 계약 인덱스…" 같은 비교 문장과 참조 프로젝트 이름을 남겼다.
+- **어떻게 알았나**: 사람이 "순수 Swift 프로젝트라 그 프로젝트에서만 쓰는 내용은 제거하라"고 지적.
+- **수정**: 전 문서 grep으로 mono-repo·React·npm·브리지 등 용어를 전수 검색해 잔재 3곳 제거. 나머지 문서는 처음부터 Swift 전용으로 작성돼 0건.
+
+### 사례 6 — 단위 테스트를 "도입 조건부"로 미룬 정책 기각 (정책 수정, 사람 결정)
+- **무엇**: LLM이 `test-policy`를 쓰면서 XCTest 타깃을 "파라미터 두 번째 수정 또는 좌표 버그 발견 시" 도입하는 조건부로 미뤘다. 요청받지 않은 범위를 늘리지 않으려는 판단이었다.
+- **왜 틀렸나**: 요구사항에 테스트가 포함되는 상황에서 "도입 조건"은 곧 감점 사유다. 사람이 문서 완성도를 묻는 질문에 LLM 스스로 이 점을 지적했고, 사람이 적용을 결정.
+- **수정**: `Threei_AssignmentTests` 타깃과 공유 scheme을 `project.pbxproj`에 추가하고 Model 계층 테스트 14건 작성(좌표 규약·버퍼 필터·격자 분기·crop). 첫 실행에서 전부 통과. `test-policy`를 "Model 순수 로직은 테스트 필수"로 개정하고 `scripts/check-structure.sh`가 세 Model 타입의 테스트 파일 존재를 검사.
+
 <!-- 실기기 검증 단계에서 좌표 변환·필터 파라미터 관련 사례 추가 예정 -->
 
 ## 4. 핵심 프롬프트 발췌
 
-(제출 전 정리 — 후보: ① 과제 명세 전체 + 브리핑 요청 → 아키텍처 합의, ② CLAUDE.md 규약 선행 작성 지시, ③ 실기기 테스트 피드백 루프 프롬프트)
+(최종 정리 — 후보: ① 요구사항 명세 전체 + 브리핑 요청 → 아키텍처 합의, ② CLAUDE.md 규약 선행 작성 지시, ③ 실기기 테스트 피드백 루프 프롬프트)
