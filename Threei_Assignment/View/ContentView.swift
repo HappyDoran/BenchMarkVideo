@@ -18,7 +18,7 @@ struct ContentView: View {
 
     private var scanScreen: some View {
         ZStack {
-            ARPreviewView(sessionManager: viewModel.sessionManager)
+            ARPreviewView { viewModel.attach(session: $0) }
                 .ignoresSafeArea()
 
             VStack {

@@ -1,5 +1,5 @@
+import ARKit
 import Observation
-import SwiftUI
 
 enum ScanState {
     case ready      // 세션은 돌지만 누적 전
@@ -21,7 +21,7 @@ final class ScanViewModel {
     private(set) var isPermissionDenied = false
 
     let isDeviceSupported = ARSessionManager.isDeviceSupported
-    let sessionManager = ARSessionManager()
+    private let sessionManager = ARSessionManager()
 
     init() {
         sessionManager.onSnapshot = { [weak self] snapshot in
@@ -44,6 +44,11 @@ final class ScanViewModel {
         case .interruptionChanged(let interrupted):
             isInterrupted = interrupted
         }
+    }
+
+    /// ARView가 소유한 세션을 파이프라인에 연결. View → ViewModel → Model 경로 유지용.
+    func attach(session: ARSession) {
+        sessionManager.attach(to: session)
     }
 
     // MARK: - 스캔 제어
