@@ -39,12 +39,17 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth)
     }
 
+    /// 메시 재구성 활성 여부 — 제어 메서드(메인 스레드)에서만 접근.
+    private var meshEnabled = false
+
     /// ARView 생성 시 호출 — ARView 소유 세션에 연결하고 실행.
+    /// 첫 구성은 mesh 없이 시작 — RealityKit 셰이더 컴파일을 줄여 카메라 표시를 앞당긴다.
+    /// mesh는 스캔 시작 시점에 켠다 (구성 교체는 트래킹을 유지).
     func attach(to session: ARSession) {
         self.session = session
         session.delegate = self
         session.delegateQueue = processingQueue
-        runSession(reset: false)
+        runSession(reset: false, withMesh: false)
         #if DEBUG
         print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
         #endif
@@ -54,13 +59,14 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var debugFrameCount = 0
     #endif
 
-    private func runSession(reset: Bool) {
+    private func runSession(reset: Bool, withMesh: Bool) {
         guard let session else { return }
         let config = ARWorldTrackingConfiguration()
         config.frameSemantics = .smoothedSceneDepth
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+        if withMesh, ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             config.sceneReconstruction = .mesh  // 카메라 프리뷰 위 스캔 시각화용
         }
+        meshEnabled = withMesh
         let options: ARSession.RunOptions = reset
             ? [.resetTracking, .removeExistingAnchors, .resetSceneReconstruction] : []
         session.run(config, options: options)
@@ -69,6 +75,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     // MARK: - 스캔 제어 (스캔 상태만 제어 — 세션은 계속 돌려 트래킹 유지)
 
     func startAccumulating() {
+        if !meshEnabled {
+            runSession(reset: false, withMesh: true)
+        }
         processingQueue.async { self.isAccumulating = true }
     }
 
@@ -87,7 +96,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
                                                     cameraHeading: 0, trajectory: []))
         }
-        runSession(reset: true)
+        runSession(reset: true, withMesh: false)
     }
 
     // MARK: - ARSessionDelegate (processingQueue에서 호출됨)

@@ -23,6 +23,13 @@ struct ContentView: View {
             ARPreviewView { viewModel.attach(session: $0) }
                 .ignoresSafeArea()
 
+            // 첫 스냅샷 전 = 렌더러·카메라 워밍업 구간
+            if viewModel.snapshot == nil {
+                ProgressView("카메라 준비 중…")
+                    .padding(20)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+
             VStack {
                 HStack(alignment: .top) {
                     statusBar

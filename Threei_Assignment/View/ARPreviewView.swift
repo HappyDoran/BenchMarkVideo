@@ -14,7 +14,9 @@ struct ARPreviewView: UIViewRepresentable {
         arView.automaticallyConfigureSession = false
         arView.debugOptions.insert(.showSceneUnderstanding)
         arView.renderOptions.insert([.disableMotionBlur, .disableDepthOfField,
-                                     .disableHDR, .disablePersonOcclusion])
+                                     .disableHDR, .disablePersonOcclusion,
+                                     .disableAREnvironmentLighting, .disableGroundingShadows,
+                                     .disableCameraGrain])
         onSessionReady(arView.session)
         return arView
     }
