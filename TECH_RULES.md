@@ -24,7 +24,7 @@ last_verified: 2026-09-04
 - ARKit 월드: **+y = 위(중력 반대)**. 미니맵 = **xz 평면** 투영.
 - `ARCamera.intrinsics`는 **capturedImage(landscape) 해상도 기준**. depthMap(256×192)에 쓸 때는 해상도 비율로 스케일한다 (`DepthFrameProcessor.UnprojectionParams`).
 - unprojection 경로: `world = camera.transform × flipYZ × (K⁻¹·(u,v,1)·depth)`. flipYZ = diag(1,-1,-1) — 이미지 좌표(y-down, z-forward)를 ARKit 카메라 좌표(y-up, -z-forward)로 변환. **depthMap 픽셀을 버퍼 좌표 그대로 순회하므로 UI 회전(portrait)은 월드 좌표 경로에 영향 없음.**
-- 카메라 heading(yaw): 시선 = transform의 -z축. `atan2(-m.columns.2.x, -m.columns.2.z)`.
+- 카메라 heading(yaw): 시선 = transform의 -z축을 xz평면에 투영. `atan2(-m.columns.2.x, m.columns.2.z)` — 항등 변환에서 0(-z 방향), 단위 테스트 `testHeadingIdentityIsZeroAndLookingPlusXIsHalfPi`가 고정.
 - 미니맵 방향: **월드 고정(north-up)**. 그리드 원점 = 스캔 시작 시 기기 위치. map col ∝ world x, map row ∝ world z.
 - `simd_float4x4`는 **column-major**. translation = `columns.3`.
 

@@ -19,11 +19,12 @@ nonisolated struct MinimapSnapshot: @unchecked Sendable {
     let occupiedCellCount: Int
 
     /// 월드 (x, z) → 이미지 정규화 좌표 (0...1). 이미지 밖이면 범위를 벗어난 값 반환.
+    /// +0.5: cellIndex는 최근접 반올림이라 셀 중심이 픽셀 중심 — 픽셀 좌상단이 아닌 중심에 맞춘다.
     func normalizedPoint(_ world: SIMD2<Float>) -> CGPoint {
         let col = world.x / OccupancyGrid.cellSize + Float(OccupancyGrid.dimension / 2)
         let row = world.y / OccupancyGrid.cellSize + Float(OccupancyGrid.dimension / 2)
-        return CGPoint(x: CGFloat((col - Float(cropOriginCol)) / Float(cropDimension)),
-                       y: CGFloat((row - Float(cropOriginRow)) / Float(cropDimension)))
+        return CGPoint(x: CGFloat((col - Float(cropOriginCol) + 0.5) / Float(cropDimension)),
+                       y: CGFloat((row - Float(cropOriginRow) + 0.5) / Float(cropDimension)))
     }
 }
 
@@ -91,7 +92,7 @@ nonisolated enum MinimapRenderer {
             return CGImage(width: dim, height: dim,
                            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: dim * 4,
                            space: CGColorSpaceCreateDeviceRGB(),
-                           bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                           bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),  // straight alpha — 픽셀값이 비승산
                            provider: provider, decode: nil,
                            shouldInterpolate: false, intent: .defaultIntent)
         }

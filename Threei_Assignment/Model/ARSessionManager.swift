@@ -28,6 +28,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var isAccumulating = false
     private var lastProcessedTime: TimeInterval = 0
     private var trajectory: [SIMD2<Float>] = []
+    /// 마지막 유효 yaw — 카메라가 수직(바닥/천장)을 볼 때 노이즈 회전 방지용.
+    private var lastHeading: Float = 0
 
     /// processingQueue에서 호출됨 — 받는 쪽에서 MainActor로 hop할 것.
     var onSnapshot: (@Sendable (MinimapSnapshot) -> Void)?
@@ -80,6 +82,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.isAccumulating = false
             self.grid.reset()
             self.trajectory = []
+            self.lastHeading = 0
+            // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
+            self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
+                                                    cameraHeading: 0, trajectory: []))
         }
         runSession(reset: true)
     }
@@ -99,9 +105,14 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
         let transform = frame.camera.transform
         let position = SIMD2(transform.columns.3.x, transform.columns.3.z)
-        let heading = DepthFrameProcessor.heading(of: transform)
+        // 시선이 수직에 가까우면 yaw가 노이즈라 마지막 유효값 유지
+        let look = -transform.columns.2
+        if look.x * look.x + look.z * look.z > 0.01 {
+            lastHeading = DepthFrameProcessor.heading(of: transform)
+        }
 
-        if isAccumulating {
+        // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다
+        if isAccumulating, case .normal = frame.camera.trackingState {
             if let depth = frame.smoothedSceneDepth ?? frame.sceneDepth {
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depth.depthMap,
@@ -111,11 +122,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     cameraTransform: transform)
                 grid.accumulate(points: points)
             }
-            if let last = trajectory.last {
-                if simd_distance(last, position) >= Self.trajectoryStep {
-                    trajectory.append(position)
-                }
-            } else {
+            if trajectory.last.map({ simd_distance($0, position) >= Self.trajectoryStep }) ?? true {
                 trajectory.append(position)
             }
         }
@@ -123,7 +130,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 일시정지 중에도 위치 마커는 계속 갱신
         let snapshot = MinimapRenderer.render(grid: grid,
                                               cameraPosition: position,
-                                              cameraHeading: heading,
+                                              cameraHeading: lastHeading,
                                               trajectory: trajectory)
         onSnapshot?(snapshot)
     }

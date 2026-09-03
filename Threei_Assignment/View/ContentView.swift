@@ -1,4 +1,6 @@
+import Foundation
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var viewModel = ScanViewModel()
@@ -22,39 +24,34 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             VStack {
-                statusBar
+                HStack(alignment: .top) {
+                    statusBar
+                    Spacer()
+                    if !isMinimapExpanded {
+                        MinimapView(snapshot: viewModel.snapshot)
+                            .frame(width: 150)
+                            .onTapGesture { isMinimapExpanded = true }
+                    }
+                }
                 Spacer()
                 controls
             }
             .padding()
 
-            // 미니맵 오버레이 (우상단) / 전체화면
             if isMinimapExpanded {
                 expandedMinimap
-            } else {
-                VStack {
-                    HStack {
-                        Spacer()
-                        MinimapView(snapshot: viewModel.snapshot)
-                            .frame(width: 150)
-                            .onTapGesture { isMinimapExpanded = true }
-                    }
-                    Spacer()
-                }
-                .padding()
-                .padding(.top, 44)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isMinimapExpanded)
     }
 
     private var statusBar: some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(stateColor)
+                    .fill(stateBadge.color)
                     .frame(width: 8, height: 8)
-                Text(stateLabel)
+                Text(stateBadge.label)
                     .font(.footnote.weight(.semibold))
                 if let snapshot = viewModel.snapshot, snapshot.totalPoints > 0 {
                     Text("·  \(snapshot.totalPoints.formatted()) pts  ·  \(snapshot.occupiedCellCount) cells")
@@ -73,7 +70,6 @@ struct ContentView: View {
                 warningBadge("세션이 중단되었습니다", icon: "pause.circle.fill")
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func warningBadge(_ text: String, icon: String) -> some View {
@@ -83,22 +79,13 @@ struct ContentView: View {
             .padding(.vertical, 6)
             .background(.orange.opacity(0.85), in: Capsule())
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var stateLabel: String {
+    private var stateBadge: (label: String, color: Color) {
         switch viewModel.state {
-        case .ready: "대기"
-        case .scanning: "스캔 중"
-        case .paused: "일시정지"
-        }
-    }
-
-    private var stateColor: Color {
-        switch viewModel.state {
-        case .ready: .gray
-        case .scanning: .green
-        case .paused: .orange
+        case .ready: ("대기", .gray)
+        case .scanning: ("스캔 중", .green)
+        case .paused: ("일시정지", .orange)
         }
     }
 
@@ -171,9 +158,13 @@ struct ContentView: View {
         infoScreen(icon: "exclamationmark.octagon.fill",
                    title: "실행할 수 없습니다",
                    message: message) {
-            if viewModel.isPermissionDenied,
-               let url = URL(string: UIApplication.openSettingsURLString) {
-                Link("설정 열기", destination: url)
+            if viewModel.isPermissionDenied {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    Link("설정 열기", destination: url)
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                Button("다시 시도") { viewModel.retry() }
                     .buttonStyle(.borderedProminent)
             }
         }

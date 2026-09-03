@@ -1,4 +1,5 @@
 import ARKit
+import Foundation
 import Observation
 
 enum ScanState {
@@ -24,13 +25,16 @@ final class ScanViewModel {
     private let sessionManager = ARSessionManager()
 
     init() {
+        // Task는 실행 순서를 보장하지 않아 이벤트/스냅샷이 뒤집힐 수 있다 — main 큐(FIFO)로 hop.
         sessionManager.onSnapshot = { [weak self] snapshot in
-            guard let self else { return }
-            Task { @MainActor in self.snapshot = snapshot }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.snapshot = snapshot }
+            }
         }
         sessionManager.onEvent = { [weak self] event in
-            guard let self else { return }
-            Task { @MainActor in self.handle(event) }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.handle(event) }
+            }
         }
     }
 
@@ -67,5 +71,12 @@ final class ScanViewModel {
         sessionManager.reset()
         snapshot = nil
         state = .ready
+    }
+
+    /// 일시 오류(트래킹 실패, 카메라 점유 등) 후 재시도. 권한 거부는 설정 변경 없이는 복구 불가.
+    func retry() {
+        fatalMessage = nil
+        isPermissionDenied = false
+        reset()
     }
 }

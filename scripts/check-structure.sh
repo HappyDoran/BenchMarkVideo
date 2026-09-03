@@ -66,8 +66,8 @@ check_absent ViewModel '^import (SwiftUI|UIKit|RealityKit)$'    "ViewModel에서
 check_absent ViewModel "\b($VIEW_TYPES)\b"                       "ViewModel이 View 참조"
 check_absent View      "\b($MODEL_OBJECTS)\b"                    "View가 Model 객체 직접 참조"
 check_absent View      '\bDispatchQueue\b'                       "View에서 큐 접근"
-# Model 최상위 타입은 nonisolated 명시
-grep -nE '^(final class|class|struct|enum|actor) ' "$SRC"/Model/*.swift 2>/dev/null \
+# Model 최상위 타입은 nonisolated 명시 (접근 제어자 붙은 선언도 검사)
+grep -nE '^(((public|internal|private|fileprivate|package)(\([a-z]+\))?|final) )*(class|struct|enum|actor) ' "$SRC"/Model/*.swift 2>/dev/null \
   | while IFS=: read -r f _ line; do err "Model 최상위 타입에 nonisolated 누락: $f — $line"; done
 
 # 6. 문서 인라인 경로 존재 검사 (`path.swift|md|sh|pbxproj`; fenced block 밖만). 저장소 루트 또는 소스 루트 기준.
