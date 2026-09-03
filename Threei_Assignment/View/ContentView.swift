@@ -5,6 +5,9 @@ import UIKit
 struct ContentView: View {
     @State private var viewModel = ScanViewModel()
     @State private var isMinimapExpanded = false
+    /// ARView(RealityKit 엔진) 생성은 메인 스레드를 수 초 블로킹 —
+    /// 첫 프레임을 먼저 그리고 나서 마운트해 흰 런치 화면 체류를 없앤다.
+    @State private var isARMounted = false
 
     var body: some View {
         if !viewModel.isDeviceSupported {
@@ -20,8 +23,12 @@ struct ContentView: View {
 
     private var scanScreen: some View {
         ZStack {
-            ARPreviewView { viewModel.attach(session: $0) }
-                .ignoresSafeArea()
+            if isARMounted {
+                ARPreviewView { viewModel.attach(session: $0) }
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
 
             // 첫 스냅샷 전 = 렌더러·카메라 워밍업 구간
             if viewModel.snapshot == nil {
@@ -50,6 +57,10 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isMinimapExpanded)
+        .task {
+            // 첫 프레임 렌더 후에 ARView 마운트 — RealityKit 초기화가 런치 화면을 막지 않게
+            isARMounted = true
+        }
     }
 
     private var statusBar: some View {
