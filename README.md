@@ -22,7 +22,9 @@ cd Threei_Assignment
 open Threei_Assignment.xcodeproj
 ```
 
-1. Xcode에서 `Threei_Assignment` scheme을 선택한다 (공유 scheme, 저장소에 포함).
+1. Xcode에서 scheme을 선택한다 (공유 scheme 2개, 저장소에 포함).
+   - `Threei_Assignment-Production` — 실사용·성능 확인용. Release, 디버거 미부착, GPU Frame Capture Disabled, Metal API Validation off. 카메라 표시까지의 시간이 실사용 기준이다.
+   - `Threei_Assignment-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
 2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.threei.assignment`, 필요하면 변경).
 3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
 4. 첫 실행 시 카메라 권한을 허용한다. 화면 하단 "스캔 시작"을 누르면 우상단 미니맵이 채워진다.
@@ -123,11 +125,11 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 
 ```bash
 # 1. 단위 테스트 (Model 순수 함수, 시뮬레이터) — 14건
-xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment \
+xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
 # 2. 실기기 타깃 컴파일 (서명 없이)
-xcodebuild -project Threei_Assignment.xcodeproj -scheme Threei_Assignment \
+xcodebuild -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
   -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 
 # 3. 구조·문서 계약 검사 (MVVM 배치, 계층 import 규칙, 테스트 배치, symlink, 문서 경로)
