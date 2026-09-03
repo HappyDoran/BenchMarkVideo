@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Threei_Assignment.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F5B0A983049CFAE00D02F2D /* 핻.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "핻.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		4F5B0A993049CFAE00D02F2D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */,
+				4F5B0A983049CFAE00D02F2D /* 핻.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4F5B0A973049CFAE00D02F2D /* Threei_Assignment */ = {
+		4F5B0A973049CFAE00D02F2D /* 핻 */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "Threei_Assignment" */;
+			buildConfigurationList = 4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "핻" */;
 			buildPhases = (
 				4F5B0A943049CFAE00D02F2D /* Sources */,
 				4F5B0A953049CFAE00D02F2D /* Frameworks */,
@@ -67,7 +67,7 @@
 			packageProductDependencies = (
 			);
 			productName = Threei_Assignment;
-			productReference = 4F5B0A983049CFAE00D02F2D /* Threei_Assignment.app */;
+			productReference = 4F5B0A983049CFAE00D02F2D /* 핻.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4F5B0A973049CFAE00D02F2D /* Threei_Assignment */,
+				4F5B0A973049CFAE00D02F2D /* 핻 */,
 			);
 		};
 /* End PBXProject section */
@@ -251,6 +251,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U6CCD5BT22;
@@ -268,8 +269,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.doran.Threei-Assignment";
+				PRODUCT_BUNDLE_IDENTIFIER = com.doran.threei.assignment;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -285,6 +287,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U6CCD5BT22;
@@ -302,8 +305,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.doran.Threei-Assignment";
+				PRODUCT_BUNDLE_IDENTIFIER = com.doran.threei.assignment;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -326,7 +330,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "Threei_Assignment" */ = {
+		4F5B0AA33049CFAF00D02F2D /* Build configuration list for PBXNativeTarget "핻" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4F5B0AA43049CFAF00D02F2D /* Debug */,

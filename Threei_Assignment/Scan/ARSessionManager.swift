@@ -43,7 +43,14 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         session.delegate = self
         session.delegateQueue = processingQueue
         runSession(reset: false)
+        #if DEBUG
+        print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
+        #endif
     }
+
+    #if DEBUG
+    private var debugFrameCount = 0
+    #endif
 
     private func runSession(reset: Bool) {
         guard let session else { return }
@@ -80,6 +87,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     // MARK: - ARSessionDelegate (processingQueue에서 호출됨)
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        #if DEBUG
+        debugFrameCount += 1
+        if debugFrameCount == 1 || debugFrameCount % 300 == 0 {
+            print("[scan] frame #\(debugFrameCount), depth: \(frame.smoothedSceneDepth != nil), tracking: \(frame.camera.trackingState)")
+        }
+        #endif
         // 스로틀: 처리 주기 미달이면 즉시 반환 (ARFrame 잡지 않음)
         guard frame.timestamp - lastProcessedTime >= Self.processInterval else { return }
         lastProcessedTime = frame.timestamp
@@ -137,6 +150,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
+        #if DEBUG
+        print("[scan] session failed: \(error)")
+        #endif
         let isPermission = (error as? ARError)?.code == .cameraUnauthorized
         let message = isPermission
             ? "카메라 권한이 없습니다. 설정에서 허용해 주세요."
