@@ -26,6 +26,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     // processingQueue에서만 접근
     private var isAccumulating = false
+    /// 한 번이라도 스캔을 시작했는가 — 궤적 기록 조건. reset에서 해제.
+    private var hasStarted = false
     private var lastProcessedTime: TimeInterval = 0
     private var trajectory: [SIMD2<Float>] = []
     /// 마지막 유효 yaw — 카메라가 수직(바닥/천장)을 볼 때 노이즈 회전 방지용.
@@ -79,7 +81,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     func startAccumulating() {
         enableMeshIfNeeded()
-        processingQueue.async { self.isAccumulating = true }
+        processingQueue.async { self.isAccumulating = true; self.hasStarted = true }
     }
 
     /// 메인 스레드에서만 호출 (meshEnabled 접근).
@@ -95,6 +97,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     func reset() {
         processingQueue.async {
             self.isAccumulating = false
+            self.hasStarted = false
             self.grid.reset()
             self.trajectory = []
             self.lastHeading = 0
@@ -146,9 +149,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     cameraTransform: transform)
                 grid.accumulate(points: points)
             }
-            if trajectory.last.map({ simd_distance($0, position) >= Self.trajectoryStep }) ?? true {
-                trajectory.append(position)
-            }
+        }
+        // 궤적은 일시정지 중에도 기록 — 어디로 걸어갔는지는 누적 여부와 무관하게 보여야 한다.
+        // 스캔 시작 전(ready)에도 세션은 돌지만 trajectory는 reset에서 비우므로 시작 전 이동은 남지 않는다.
+        if hasStarted,
+           trajectory.last.map({ simd_distance($0, position) >= Self.trajectoryStep }) ?? true {
+            trajectory.append(position)
         }
 
         // 일시정지 중에도 위치 마커는 계속 갱신

@@ -65,10 +65,10 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ① 프레임 수신 | `ARSessionManager.session(_:didUpdate:)`, `scan.processing` 큐 | `ARFrame` 도착 (기기 기본 60fps) | — |
 | ② 스로틀 | 같은 콜백, 첫 줄 | `timestamp - lastProcessedTime < 0.1s`면 즉시 반환 | 약 6프레임 중 5프레임 |
 | ③ 자세 추출 | 같은 콜백 | `camera.transform`에서 위치(x, z)와 heading | — |
-| ④ 깊이 선택 | 같은 콜백 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 마커만 갱신 |
+| ④ 깊이 선택 | 같은 콜백 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 궤적·마커만 갱신 |
 | ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
 | ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
-| ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가 | 미세 이동 |
+| ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동 |
 | ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
 | ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 `Task { @MainActor }`로 hop | — |
 | ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
