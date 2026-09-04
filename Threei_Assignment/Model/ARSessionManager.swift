@@ -21,7 +21,7 @@ nonisolated enum ScanEvent: Sendable {
 nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecked Sendable {
 
     /// 깊이 프레임 처리 최소 간격(s). 60fps 중 ~10fps만 그리드에 반영.
-    private static let processInterval: TimeInterval = 0.1
+    private static let processInterval: TimeInterval = 0  // perf-baseline: 스로틀 해제
     /// 궤적 기록 최소 이동 거리(m).
     private static let trajectoryStep: Float = 0.25
 

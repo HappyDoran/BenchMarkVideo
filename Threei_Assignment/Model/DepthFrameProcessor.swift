@@ -16,7 +16,7 @@ nonisolated struct ScanPoint: Equatable {
 nonisolated enum DepthFrameProcessor {
 
     /// 프레임당 샘플링 간격(픽셀). 256×192 기준 stride 4 → 최대 3,072점.
-    static let pixelStride = 4
+    static let pixelStride = 1  // perf-baseline: 전수 샘플링
     /// 유효 깊이 범위(m). 근접 노이즈와 원거리 저신뢰 값 제외.
     static let depthRange: ClosedRange<Float> = 0.25...5.0
 
