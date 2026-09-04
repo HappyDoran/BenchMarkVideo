@@ -24,7 +24,8 @@ struct ContentView: View {
     private var scanScreen: some View {
         ZStack {
             if isARMounted {
-                ARPreviewView { viewModel.attach(session: $0) }
+                ARPreviewView(onSessionReady: { viewModel.attach(session: $0) },
+                              showMesh: viewModel.state != .ready)   // 일시정지 중엔 유지, 초기화하면 숨김
                     .ignoresSafeArea()
             } else {
                 Color.black.ignoresSafeArea()
