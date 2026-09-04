@@ -67,7 +67,7 @@ nonisolated enum MinimapRenderer {
         originC = max(0, min(originC, OccupancyGrid.dimension - dim))
         originR = max(0, min(originR, OccupancyGrid.dimension - dim))
 
-        // RGBA 비트맵: 벽 = 카메라 색 그대로, 관측된 바닥 = 카메라 색을 절반 어둡게, 미관측 = 반투명 검정
+        // RGBA 비트맵: 벽 = 카메라 색 그대로, 관측된 바닥 = 카메라 색을 절반 어둡게, 미관측 = 투명
         // ponytail: 벽/바닥 구분을 밝기 차로만 둠. 실기기에서 벽 라인이 안 읽히면 벽 테두리(이웃 셀 검사) 추가.
         var pixels = [UInt8](repeating: 0, count: dim * dim * 4)
         grid.wallHits.withUnsafeBufferPointer { walls in
@@ -85,9 +85,9 @@ nonisolated enum MinimapRenderer {
                                 pixels[o] = rgb.x; pixels[o+1] = rgb.y; pixels[o+2] = rgb.z; pixels[o+3] = 255
                             } else if f >= OccupancyGrid.floorHitThreshold {
                                 pixels[o] = rgb.x / 2; pixels[o+1] = rgb.y / 2; pixels[o+2] = rgb.z / 2; pixels[o+3] = 230
-                            } else {
-                                pixels[o+3] = 150  // 미관측: 반투명 검정
                             }
+                            // 미관측 셀은 alpha 0 그대로 — View 배경이 그대로 비쳐
+                            // 이미지 영역과 그 바깥이 같은 색으로 보인다 (오버레이 창 균일).
                         }
                     }
                 }

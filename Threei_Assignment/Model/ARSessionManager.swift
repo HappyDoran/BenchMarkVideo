@@ -30,6 +30,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var trajectory: [SIMD2<Float>] = []
     /// 마지막 유효 yaw — 카메라가 수직(바닥/천장)을 볼 때 노이즈 회전 방지용.
     private var lastHeading: Float = 0
+    /// mesh 예열 요청 여부 — 첫 프레임에 한 번만.
+    private var didRequestMeshWarmUp = false
 
     /// processingQueue에서 호출됨 — 받는 쪽에서 MainActor로 hop할 것.
     var onSnapshot: (@Sendable (MinimapSnapshot) -> Void)?
@@ -44,7 +46,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     /// ARView 생성 시 호출 — ARView 소유 세션에 연결하고 실행.
     /// 첫 구성은 mesh 없이 시작 — RealityKit 셰이더 컴파일을 줄여 카메라 표시를 앞당긴다.
-    /// mesh는 트래킹이 normal이 되는 시점(또는 그 전에 스캔 시작을 누르면 그때) 켠다 —
+    /// mesh는 첫 프레임 도착 직후(카메라 패스스루가 이미 시작된 시점) 켠다 —
     /// 스캔 시작 직후 "카메라 위에 아무 변화 없는 2초"를 없애기 위한 예열 (구성 교체는 트래킹을 유지).
     func attach(to session: ARSession) {
         self.session = session
@@ -96,6 +98,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.grid.reset()
             self.trajectory = []
             self.lastHeading = 0
+            self.didRequestMeshWarmUp = false
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
                                                     cameraHeading: 0, trajectory: []))
@@ -112,6 +115,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             print("[scan] frame #\(debugFrameCount), depth: \(frame.smoothedSceneDepth != nil), tracking: \(frame.camera.trackingState)")
         }
         #endif
+        // 예열: 첫 프레임 = 카메라 패스스루 시작 시점. 여기서 mesh를 켜야
+        // 사용자가 "스캔 시작"을 누를 때 이미 앵커·셰이더가 준비돼 있다.
+        if !didRequestMeshWarmUp {
+            didRequestMeshWarmUp = true
+            DispatchQueue.main.async { self.enableMeshIfNeeded() }
+        }
         // 스로틀: 처리 주기 미달이면 즉시 반환 (ARFrame 잡지 않음)
         guard frame.timestamp - lastProcessedTime >= Self.processInterval else { return }
         lastProcessedTime = frame.timestamp
@@ -154,7 +163,6 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         switch camera.trackingState {
         case .normal:
             message = nil
-            DispatchQueue.main.async { self.enableMeshIfNeeded() }  // 예열: 스캔 시작 전에 mesh 준비
         case .notAvailable:
             message = "트래킹을 사용할 수 없습니다"
         case .limited(.excessiveMotion):

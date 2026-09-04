@@ -69,7 +69,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
 | ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
 | ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가 | 미세 이동 |
-| ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2), `CGImage` 생성 | 관측 영역 밖 셀 |
+| ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
 | ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 `Task { @MainActor }`로 hop | — |
 | ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
 
@@ -117,6 +117,8 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **이유.** 실기기 1차 확인에서 auto-fit 오버레이는 맵이 커질수록 마커가 가장자리로 밀려 "내가 지금 어디인가"를 150pt 안에서 읽을 수 없었다 (`LLM_REPORT.md` 사례 9). 작은 창의 질문은 "내 주변 어디가 비었나"이고, 전체 구조는 전체화면이 답한다. 최종결과물 비디오의 오버레이도 마커가 중앙 부근에 고정돼 있다 (명세 부록 A).
 
+**미관측 셀은 alpha 0.** 이미지가 뷰보다 작을 때(관측 영역 < 8m) 이미지 안쪽과 바깥쪽이 다른 색이면 창 안에 어두운 사각형이 떠 있고 스캔할수록 커지는 것처럼 보인다. 미관측을 완전 투명으로 두면 View 배경(`Color.black.opacity(0.55)`) 하나만 보이고 관측 셀만 그 위에 얹힌다. 반경 밖 내용은 `clipShape`가 잘라낸다 — 걸어서 8m를 벗어난 영역은 격자에 남아 있어도 오버레이에는 안 보이고, 전체화면에서 보인다.
+
 **대안.** 렌더러가 카메라 중심 crop을 따로 만들기 — 프레임마다 비트맵 두 장. View 변환이 공짜라 기각. 반경 값 4m은 실내 복도·방 크기 기준의 초기값이며 실기기 튜닝 대상.
 
 **되돌리기 조건.** 팬·줌을 넣을 때 이 scale·offset이 그대로 줌 상태가 된다 (13절 5번).
@@ -129,7 +131,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **대안.** Metal 포인트클라우드 렌더러 — 점 단위 시각화가 더 직관적이지만 코드량 대비 요구사항 기여도가 낮아 기각.
 
-**켜는 시점.** 첫 구성은 mesh 없이 실행해 카메라 표시를 앞당기고, 트래킹이 `normal`이 되는 순간(그 전에 스캔 시작을 누르면 그때) `sceneReconstruction = .mesh`로 구성을 교체한다. 실기기에서 "스캔 시작 직후 카메라 위에 아무 변화 없는 2초"가 관찰됐는데, 구성 교체 후 첫 mesh 앵커 생성과 와이어프레임 셰이더 컴파일이 그 시점에 몰렸기 때문이다. 트래킹 normal 시점으로 앞당기면 사용자가 버튼을 누를 때 이미 준비돼 있다. 구성 교체는 reset 옵션 없이 하므로 트래킹은 유지된다.
+**켜는 시점.** 첫 구성은 mesh 없이 실행해 카메라 표시를 앞당기고, **첫 프레임이 도착한 직후**(카메라 패스스루가 이미 시작된 시점) `sceneReconstruction = .mesh`로 구성을 교체한다. 실기기에서 "스캔 시작 직후 카메라 위에 아무 변화 없는 2초"가 관찰됐는데, 구성 교체 후 첫 mesh 앵커 생성과 와이어프레임 셰이더 컴파일이 그 시점에 몰렸기 때문이다. 예열 시점을 트래킹 `normal`에 뒀다가 여전히 늦어(트래킹 수렴에 수 초) 첫 프레임으로 더 앞당겼다. 카메라가 이미 떠 있어 패스스루 지연은 생기지 않는다. 구성 교체는 reset 옵션 없이 하므로 트래킹은 유지된다.
 
 **되돌리기 조건.** 요구사항이 "포인트클라우드 시각화"를 명시하거나, mesh가 지원되지 않는 기기를 지원해야 할 때.
 
