@@ -78,6 +78,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     /// DESIGN.md 10절: 콜백 처리 시간을 Instruments Points of Interest로 측정.
     private let signposter = OSSignposter(
         logHandle: OSLog(subsystem: "io.tenkm.doran.lidarscan", category: .pointsOfInterest))
+    /// points/frame — Logger라서 Xcode 미부착이어도 `log collect --device`로 사후 수집 가능.
+    private let perfLog = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
     #endif
 
     private func runSession(reset: Bool, withMesh: Bool) {
@@ -172,7 +174,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 #if DEBUG
                 debugProcessedCount += 1
                 if debugProcessedCount % 30 == 0 {  // 약 3초마다 — 설계 상한 3,072점 확인용
-                    print("[perf] points/frame: \(points.count)")
+                    perfLog.info("points/frame: \(points.count)")
                 }
                 #endif
             }
