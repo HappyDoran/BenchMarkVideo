@@ -26,6 +26,10 @@ final class ScanViewModel {
     let isDeviceSupported = ARSessionManager.isDeviceSupported
     private let sessionManager = ARSessionManager()
 
+    /// MainActor 격리 deinit은 iOS 17 back-deploy 경로(swift_task_deinitOnExecutor)에서
+    /// 크래시한다 (시뮬레이터 테스트에서 재현). 정리할 격리 상태가 없으므로 nonisolated로 해제.
+    nonisolated deinit {}
+
     init() {
         // Task는 실행 순서를 보장하지 않아 이벤트/스냅샷이 뒤집힐 수 있다 — main 큐(FIFO)로 hop.
         sessionManager.onSnapshot = { [weak self] snapshot in
@@ -40,7 +44,8 @@ final class ScanViewModel {
         }
     }
 
-    private func handle(_ event: ScanEvent) {
+    /// internal: handle 분기가 넷을 넘어 test-policy 전환 조건 충족 — `ScanViewModelTests`가 직접 호출.
+    func handle(_ event: ScanEvent) {
         switch event {
         case .trackingChanged(let message):
             trackingMessage = message
@@ -73,7 +78,9 @@ final class ScanViewModel {
 
     func reset() {
         sessionManager.reset()
-        snapshot = nil
+        // snapshot은 여기서 nil로 만들지 않는다 — 처리 큐(직렬)가 곧 빈 스냅샷을 발행하고,
+        // nil로 만들면 "카메라 준비 중…" 오버레이가 라이브 카메라 위에 오발되고
+        // 그 사이 도착하는 옛 그리드 스냅샷이 한 프레임 되살아난다.
         isMeshReady = false  // resetSceneReconstruction — 다음 meshReady까지 배지 대상
         state = .ready
     }
@@ -82,6 +89,9 @@ final class ScanViewModel {
     func retry() {
         fatalMessage = nil
         isPermissionDenied = false
+        // 재생성된 새 세션은 중단된 적이 없어 interruptionEnded가 오지 않는다 — 여기서 지워야 배지가 안 남는다.
+        isInterrupted = false
+        trackingMessage = nil
         reset()
     }
 }

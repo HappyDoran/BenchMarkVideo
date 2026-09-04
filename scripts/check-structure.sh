@@ -49,8 +49,11 @@ TESTS=Threei_AssignmentTests
 [ -d "$TESTS" ] || err "테스트 디렉터리 없음: $TESTS"
 find "$TESTS" -name '*.swift' 2>/dev/null | grep -vE "^$TESTS/[A-Za-z0-9_]+Tests\.swift$" \
   | while read -r f; do err "테스트 파일 이름·위치 규칙 위반 (<Type>Tests.swift): $f"; done
-grep -lE '\b(ContentView|MinimapView|ARPreviewView|ScanViewModel)\b' "$TESTS"/*.swift 2>/dev/null \
-  | while read -r f; do err "테스트가 View/ViewModel 참조 (Model만 대상): $f"; done
+# View는 테스트 금지. ScanViewModel은 handle 분기 4개로 test-policy 전환 조건 충족 — 자기 테스트 파일에서만 허용.
+grep -lE '\b(ContentView|MinimapView|ARPreviewView)\b' "$TESTS"/*.swift 2>/dev/null \
+  | while read -r f; do err "테스트가 View 참조 (View 제외): $f"; done
+grep -lE '\bScanViewModel\b' "$TESTS"/*.swift 2>/dev/null | grep -v "ScanViewModelTests.swift" \
+  | while read -r f; do err "ScanViewModel 참조는 ScanViewModelTests.swift에서만: $f"; done
 for m in DepthFrameProcessor OccupancyGrid MinimapRenderer; do
   [ -f "$TESTS/${m}Tests.swift" ] || err "Model 순수 로직 테스트 없음: $TESTS/${m}Tests.swift"
 done
