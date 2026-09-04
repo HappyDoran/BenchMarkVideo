@@ -68,7 +68,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ④ 깊이 선택 | 같은 콜백 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 궤적·마커만 갱신 |
 | ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
 | ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
-| ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동 |
+| ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동, 트래킹 limited 중 이동 |
 | ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
 | ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 `Task { @MainActor }`로 hop | — |
 | ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
@@ -246,7 +246,8 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 
 ## 12. 알려진 한계와 드리프트 (명세 7-4)
 
-- **드리프트.** 오래 스캔하면 VIO 추정이 누적 오차를 갖고 같은 벽이 두 겹으로 그려질 수 있다. 현재 보정하지 않는다. hit threshold(벽 3, 바닥 2)가 얇은 노이즈는 걸러 주지만 드리프트로 어긋난 두 번째 벽은 그대로 남는다. 재로컬라이즈 시 `ARSession`이 앵커를 옮겨도 격자는 옮기지 않는다.
+- **드리프트.** 오래 스캔하면 VIO 추정이 누적 오차를 갖고 같은 벽이 두 겹으로 그려질 수 있다. 현재 보정하지 않는다. hit threshold(벽 3, 바닥 2)가 얇은 노이즈는 걸러 주지만 드리프트로 어긋난 두 번째 벽은 그대로 남는다.
+- **중단 후 재로컬라이즈.** `sessionShouldAttemptRelocalization`을 `true`로 두어 백그라운드 복귀 등 중단 뒤 ARKit이 기존 월드 원점으로 되돌아오게 한다. 이렇게 하지 않으면 트래킹이 새로 시작돼 원점이 바뀌고, 그때까지의 격자가 통째로 어긋난다. 재로컬라이즈 중(`limited(.relocalizing)`)에는 누적·궤적을 멈추고 배지를 띄우며, 끝나지 않으면 사용자가 초기화로 탈출한다. 재로컬라이즈 후 ARKit이 앵커를 미세 조정해도 격자는 옮기지 않는다 — 그 오차는 위 드리프트와 같은 성격이다.
 - **시작 높이 가정.** 6절 밴드는 시작 시 기기 높이에 의존한다.
 - **20m 상한.** 5절. 밖의 점은 버린다.
 - **트래킹 불량 시 누적.** 트래킹이 `limited`여도 누적을 멈추지 않는다 — 경고만 띄운다. 불량 프레임의 점이 격자를 오염시킬 수 있다.

@@ -54,6 +54,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         self.session = session
         session.delegate = self
         session.delegateQueue = processingQueue
+        processingQueue.async { self.didRequestMeshWarmUp = false }  // retry로 ARView가 재생성될 때도 예열
         runSession(reset: false, withMesh: false)
         #if DEBUG
         print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
@@ -151,8 +152,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             }
         }
         // 궤적은 일시정지 중에도 기록 — 어디로 걸어갔는지는 누적 여부와 무관하게 보여야 한다.
-        // 스캔 시작 전(ready)에도 세션은 돌지만 trajectory는 reset에서 비우므로 시작 전 이동은 남지 않는다.
-        if hasStarted,
+        // 단 tracking normal일 때만 — limited 포즈는 튀어서 궤적에 스파이크가 남는다.
+        // 스캔 시작 전(ready)에도 세션은 돌지만 hasStarted가 false라 시작 전 이동은 남지 않는다.
+        if hasStarted, case .normal = frame.camera.trackingState,
            trajectory.last.map({ simd_distance($0, position) >= Self.trajectoryStep }) ?? true {
             trajectory.append(position)
         }
@@ -200,6 +202,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     func sessionWasInterrupted(_ session: ARSession) {
         onEvent?(.interruptionChanged(isInterrupted: true))
     }
+
+    /// 중단(백그라운드 등) 후 기존 월드 원점으로 재로컬라이즈를 시도한다.
+    /// false면 ARKit이 트래킹을 새로 시작해 원점이 바뀌고, 그때까지 쌓은 격자가 전부 어긋난다.
+    /// 재로컬라이즈가 끝나지 않으면 "위치 재인식 중…" 배지가 유지되고 사용자는 초기화로 탈출한다.
+    func sessionShouldAttemptRelocalization(_ session: ARSession) -> Bool { true }
 
     func sessionInterruptionEnded(_ session: ARSession) {
         onEvent?(.interruptionChanged(isInterrupted: false))
