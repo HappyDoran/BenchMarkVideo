@@ -13,6 +13,25 @@ final class MinimapRendererTests: XCTestCase {
         XCTAssertEqual(snap.totalPoints, 0)
     }
 
+    func testUnchangedGridReusesImageAndChangeRerenders() {
+        let grid = OccupancyGrid()
+        grid.accumulate(points: [ScanPoint(position: .zero)])
+        let first = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 0, trajectory: [])
+        // 격자·crop 불변(제자리 회전, 일시정지) → 이미지 인스턴스 재사용
+        let second = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 1,
+                                            trajectory: [], previous: first)
+        XCTAssertTrue(first.image === second.image)
+        // 격자 변경 → 재렌더 (다른 인스턴스)
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0.2, 0, 0))])
+        let third = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 0,
+                                           trajectory: [], previous: second)
+        XCTAssertFalse(second.image === third.image)
+        // 격자 불변이라도 카메라가 crop 밖으로 나가면 crop이 바뀌므로 재렌더
+        let moved = MinimapRenderer.render(grid: grid, cameraPosition: SIMD2(3, 0), cameraHeading: 0,
+                                           trajectory: [], previous: third)
+        XCTAssertFalse(third.image === moved.image)
+    }
+
     func testCropCoversObservedCellsAndCamera() {
         let grid = OccupancyGrid()
         grid.accumulate(points: [ScanPoint(position: SIMD3(1, 0, 0))])   // 카메라(0,0)에서 x로 20셀

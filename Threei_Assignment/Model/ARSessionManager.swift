@@ -16,14 +16,18 @@ nonisolated enum ScanEvent: Sendable {
 /// ARSession 소유·제어 + 깊이 파이프라인 구동.
 ///
 /// 스레딩: delegate 콜백과 그리드 접근은 전부 `processingQueue`(직렬).
-/// 제어 메서드(start/pause/...)는 아무 스레드에서나 호출 가능 — 내부에서 큐로 hop.
+/// 제어 메서드(start/pause/reset/attach)는 **메인 스레드에서만** 호출한다 —
+/// meshEnabled와 session.run이 메인 전용이라 큐 hop은 누적 상태(isAccumulating 등)에만 적용된다 (TECH_RULES §3).
 /// @unchecked Sendable: 가변 상태는 processingQueue에서만 접근한다는 규약으로 보장.
 nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecked Sendable {
 
     /// 깊이 프레임 처리 최소 간격(s). 60fps 중 ~10fps만 그리드에 반영.
     private static let processInterval: TimeInterval = 0.1
-    /// 궤적 기록 최소 이동 거리(m).
+    /// 궤적 기록 최소 이동 거리(m). 시작값 — 상한 도달 시 데시메이션과 함께 배가.
     private static let trajectoryStep: Float = 0.25
+    /// 궤적 점 수 상한 — 격자처럼 메모리·스냅샷 복사 비용을 고정 (2048점 × 8B = 16KB).
+    /// 도달하면 점을 절반 솎고 기록 간격을 배가 — 경로 형태는 유지, 해상도만 낮아진다.
+    private static let trajectoryMaxPoints = 2048
 
     private let processingQueue = DispatchQueue(label: "scan.processing")
     private weak var session: ARSession?
@@ -38,6 +42,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var scanOriginY: Float?
     private var lastProcessedTime: TimeInterval = 0
     private var trajectory: [SIMD2<Float>] = []
+    /// 현재 궤적 기록 간격(m) — 데시메이션마다 배가, reset에서 초기값 복원.
+    private var trajectoryStride: Float = ARSessionManager.trajectoryStep
+    /// 직전 스냅샷 — 격자 미변경 시 렌더러가 이미지를 재사용.
+    private var lastSnapshot: MinimapSnapshot?
     /// 마지막 유효 yaw — 카메라가 수직(바닥/천장)을 볼 때 노이즈 회전 방지용.
     private var lastHeading: Float = 0
     /// mesh 예열 요청 여부 — 첫 프레임에 한 번만.
@@ -137,7 +145,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.scanOriginY = nil
             self.grid.reset()
             self.trajectory = []
+            self.trajectoryStride = Self.trajectoryStep
             self.lastHeading = 0
+            self.lastSnapshot = nil
             self.didReportMeshReady = false  // resetSceneReconstruction으로 앵커가 지워짐 — 재생성 감지 재무장
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
@@ -179,6 +189,13 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         let position = SIMD2(transform.columns.3.x, transform.columns.3.z)
         // 스캔 첫 프레임의 카메라 높이를 밴드 기준으로 고정 (reset에서 해제)
         if hasStarted, scanOriginY == nil { scanOriginY = transform.columns.3.y }
+        // meshReady: 프레임 앵커 스냅샷의 없음→있음 전이로 감지. didAdd 콜백 대신 프레임 기준인 이유 —
+        // 프레임은 세션 상태와 일관되고 이 큐(직렬)에서만 읽으므로, reset 직후 구 세션 앵커의
+        // didAdd가 플래그 클리어 뒤에 끼어들어 가짜 이벤트를 쏘고 가드를 재무장하는 경합이 없다.
+        if !didReportMeshReady, frame.anchors.contains(where: { $0 is ARMeshAnchor }) {
+            didReportMeshReady = true
+            onEvent?(.meshReady)
+        }
         // 시선이 수직에 가까우면 yaw가 노이즈라 마지막 유효값 유지
         let look = -transform.columns.2
         if look.x * look.x + look.z * look.z > 0.01 {
@@ -198,18 +215,21 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 grid.accumulate(points: points, originY: scanOriginY ?? 0)
                 #if DEBUG
                 debugProcessedCount += 1
-                if debugProcessedCount % 30 == 0 {  // 약 3초마다 — Instruments 없이 log collect로 판독
+                if debugProcessedCount % 30 == 0, !debugCallbackMs.isEmpty {
+                    // 약 3초 창 단위 백분위 — 누적하면 초반 샘플이 지배해 후반 저하를 가리고,
+                    // 무제한 배열 재정렬이 측정 대상 자체를 느리게 한다. 로그 후 창을 비운다.
                     let sorted = debugCallbackMs.sorted()
                     let p50 = sorted[sorted.count / 2]
                     let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
                     let maxMs = sorted.last ?? 0
                     perfLog.info("""
                         n=\(self.debugProcessedCount) points/frame=\(points.count) \
-                        cb p50=\(String(format: "%.2f", p50))ms \
+                        cb(3s) p50=\(String(format: "%.2f", p50))ms \
                         p95=\(String(format: "%.2f", p95))ms \
                         max=\(String(format: "%.2f", maxMs))ms \
                         mem=\(String(format: "%.1f", Self.footprintMB()))MB
                         """)
+                    debugCallbackMs.removeAll(keepingCapacity: true)
                 }
                 #endif
             }
@@ -218,22 +238,23 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 단 tracking normal일 때만 — limited 포즈는 튀어서 궤적에 스파이크가 남는다.
         // 스캔 시작 전(ready)에도 세션은 돌지만 hasStarted가 false라 시작 전 이동은 남지 않는다.
         if hasStarted, case .normal = frame.camera.trackingState,
-           trajectory.last.map({ simd_distance($0, position) >= Self.trajectoryStep }) ?? true {
+           trajectory.last.map({ simd_distance($0, position) >= trajectoryStride }) ?? true {
             trajectory.append(position)
+            // 상한 도달 시 절반 솎고 간격 배가 — 격자처럼 메모리·복사 비용을 고정
+            if trajectory.count >= Self.trajectoryMaxPoints {
+                trajectory = Swift.stride(from: 0, to: trajectory.count, by: 2).map { trajectory[$0] }
+                trajectoryStride *= 2
+            }
         }
 
-        // 일시정지 중에도 위치 마커는 계속 갱신
+        // 일시정지 중에도 위치 마커는 계속 갱신. 격자 미변경 시 이미지는 재사용(lastSnapshot).
         let snapshot = MinimapRenderer.render(grid: grid,
                                               cameraPosition: position,
                                               cameraHeading: lastHeading,
-                                              trajectory: trajectory)
+                                              trajectory: trajectory,
+                                              previous: lastSnapshot)
+        lastSnapshot = snapshot
         onSnapshot?(snapshot)
-    }
-
-    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
-        guard !didReportMeshReady, anchors.contains(where: { $0 is ARMeshAnchor }) else { return }
-        didReportMeshReady = true
-        onEvent?(.meshReady)
     }
 
     func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {

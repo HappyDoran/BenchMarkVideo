@@ -34,10 +34,16 @@ nonisolated final class OccupancyGrid {
     /// 관측된 셀 수 — 커버리지 피드백용.
     private(set) var occupiedCellCount = 0
 
+    /// 월드 (x, z) → 연속 셀 좌표 (반올림·경계 처리 전).
+    /// 월드→격자 매핑의 단일 정의 — cellIndex와 MinimapSnapshot.normalizedPoint가 여기서 파생된다.
+    static func continuousCell(x: Float, z: Float) -> SIMD2<Float> {
+        SIMD2(x / cellSize + Float(dimension / 2), z / cellSize + Float(dimension / 2))
+    }
+
     /// 월드 (x, z) → 셀 (col, row). row는 +z 방향으로 증가 (이미지 아래 방향 = north-up).
     static func cellIndex(x: Float, z: Float) -> (col: Int, row: Int)? {
-        let col = Int((x / cellSize).rounded()) + dimension / 2
-        let row = Int((z / cellSize).rounded()) + dimension / 2
+        let c = continuousCell(x: x, z: z)
+        let col = Int(c.x.rounded()), row = Int(c.y.rounded())
         guard col >= 0, col < dimension, row >= 0, row < dimension else { return nil }
         return (col, row)
     }

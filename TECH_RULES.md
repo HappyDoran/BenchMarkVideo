@@ -34,7 +34,7 @@ last_verified: 2026-09-04
 - Model 계층(`ARSessionManager`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)은 `nonisolated` 명시. 가변 상태는 **전용 직렬 큐 `scan.processing`에서만 접근**한다. `ARSession.delegateQueue` = 그 큐.
 - delegate 콜백 안에서 `ARFrame`을 오래 붙잡지 않는다 (프레임 풀 고갈). 콜백 내 동기 처리 목표 <10ms. 스로틀 미달 프레임은 즉시 반환.
 - Model → ViewModel 전달은 불변 스냅샷(`MinimapSnapshot`: CGImage + pose)과 `ScanEvent` 값만. ViewModel이 `Task { @MainActor in }`로 hop한다.
-- ViewModel → Model 제어(`startAccumulating`/`pauseAccumulating`/`reset`)는 아무 스레드에서 호출 가능하고 Model 내부에서 큐로 hop한다.
+- ViewModel → Model 제어(`attach`/`startAccumulating`/`pauseAccumulating`/`reset`)는 **메인 스레드에서만 호출**한다 — `session.run`과 mesh 활성 플래그가 메인 전용이고, 호출자(ViewModel)가 MainActor라 자연 성립. 누적 상태 변경만 Model 내부에서 큐로 hop한다.
 
 ## 4. 아키텍처
 
