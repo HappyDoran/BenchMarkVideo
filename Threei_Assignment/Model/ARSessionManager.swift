@@ -44,7 +44,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     /// ARView 생성 시 호출 — ARView 소유 세션에 연결하고 실행.
     /// 첫 구성은 mesh 없이 시작 — RealityKit 셰이더 컴파일을 줄여 카메라 표시를 앞당긴다.
-    /// mesh는 스캔 시작 시점에 켠다 (구성 교체는 트래킹을 유지).
+    /// mesh는 트래킹이 normal이 되는 시점(또는 그 전에 스캔 시작을 누르면 그때) 켠다 —
+    /// 스캔 시작 직후 "카메라 위에 아무 변화 없는 2초"를 없애기 위한 예열 (구성 교체는 트래킹을 유지).
     func attach(to session: ARSession) {
         self.session = session
         session.delegate = self
@@ -75,10 +76,13 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     // MARK: - 스캔 제어 (스캔 상태만 제어 — 세션은 계속 돌려 트래킹 유지)
 
     func startAccumulating() {
-        if !meshEnabled {
-            runSession(reset: false, withMesh: true)
-        }
+        enableMeshIfNeeded()
         processingQueue.async { self.isAccumulating = true }
+    }
+
+    /// 메인 스레드에서만 호출 (meshEnabled 접근).
+    private func enableMeshIfNeeded() {
+        if !meshEnabled { runSession(reset: false, withMesh: true) }
     }
 
     func pauseAccumulating() {
@@ -126,6 +130,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depth.depthMap,
                     confidenceMap: depth.confidenceMap,
+                    capturedImage: frame.capturedImage,
                     intrinsics: frame.camera.intrinsics,
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
@@ -149,6 +154,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         switch camera.trackingState {
         case .normal:
             message = nil
+            DispatchQueue.main.async { self.enableMeshIfNeeded() }  // 예열: 스캔 시작 전에 mesh 준비
         case .notAvailable:
             message = "트래킹을 사용할 수 없습니다"
         case .limited(.excessiveMotion):

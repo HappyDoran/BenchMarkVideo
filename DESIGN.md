@@ -35,7 +35,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 1. **계층 경계가 곧 격리 경계다.** 이 앱의 핵심 제약은 동시성이다 — ARKit delegate는 `scan.processing` 직렬 큐에서 돌고, SwiftUI는 MainActor에서 돈다. MVVM의 세 계층이 이 두 실행 문맥에 그대로 대응한다: Model은 `nonisolated`로 큐 전용, ViewModel은 MainActor 상태 허브, View는 ViewModel만 읽는다. 폴더 이름만 보고도 "이 파일은 어느 스레드에서 도는가"를 알 수 있다. 격리 규칙을 폴더 규칙으로 바꾸면 기계 검사(`scripts/check-structure.sh`)가 가능해진다.
 2. **SwiftUI + `@Observable`의 기본 형태다.** View는 상태의 함수이고, 상태를 소유·발행하는 객체가 하나 필요하다. `ScanViewModel`이 그 하나다. 별도 프레임워크나 boilerplate 없이 Observation만으로 성립한다.
-3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`Threei_AssignmentTests/`, 14건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
+3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`Threei_AssignmentTests/`, 16건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
 4. **LLM 협업에 유리하다.** 배치 규칙이 "파일이 어느 폴더에 있고 무엇을 import하면 안 되는가"라는 기계적 규칙이라 에이전트에게 강제할 수 있고, 위반이 커밋 전에 스크립트로 잡힌다. 기능 단위 폴더링(`Scan/`, `Minimap/`, `UI/`)은 어디까지가 UI이고 어디까지가 파이프라인인지 사람의 판단이 필요했다.
 5. **프로젝트 규모에 맞는 무게다.** 단일 화면, 파일 9개다. 세 계층으로 충분하다.
 
@@ -50,7 +50,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 14건 통과. 런타임 동작은 재배치 전과 동일해야 하며 실기기 재확인은 미검증.
+**검증 상태.** 컴파일·구조 검사·단위 테스트 16건 통과. 런타임 동작은 재배치 전과 동일해야 하며 실기기 재확인은 미검증.
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -66,12 +66,12 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ② 스로틀 | 같은 콜백, 첫 줄 | `timestamp - lastProcessedTime < 0.1s`면 즉시 반환 | 약 6프레임 중 5프레임 |
 | ③ 자세 추출 | 같은 콜백 | `camera.transform`에서 위치(x, z)와 heading | — |
 | ④ 깊이 선택 | 같은 콜백 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 마커만 갱신 |
-| ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표 | 픽셀 15/16, 저신뢰·범위 밖 |
-| ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, used-bounds 갱신 | 천장, 20m 밖 |
+| ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
+| ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
 | ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가 | 미세 이동 |
-| ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA, `CGImage` 생성 | 관측 영역 밖 셀 |
+| ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2), `CGImage` 생성 | 관측 영역 밖 셀 |
 | ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 `Task { @MainActor }`로 hop | — |
-| ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이 | — |
+| ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
 
 ②~⑧이 콜백 안에서 동기로 끝난다. `ARFrame`은 콜백 밖으로 나가지 않는다 — 프레임 풀 고갈 방지 (`TECH_RULES.md` 3절). 실시간 갱신(R2-1)은 이 구조 자체로 보장된다: 스캔 종료 후 일괄 처리하는 단계가 없다.
 
@@ -111,6 +111,16 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **대안.** heading-up(진행 방향 고정) — 내비게이션에 익숙하지만 매 프레임 비트맵 회전이 필요하고, 정지 상태에서 yaw 노이즈로 지도가 떨린다. 시작 방향 고정 — `.gravity` 정렬에서는 north-up과 같다.
 
+### 3.4 오버레이 창: 카메라 중심 고정, 반경 4m (R2-3, R2-4)
+
+**결정.** 우상단 오버레이는 `MinimapView(visibleRadius: 4)` — 렌더러가 만든 auto-fit 이미지를 View에서 scale·offset해 카메라가 항상 중앙에 오고 한 변이 8m가 되게 그린다. 전체화면은 `visibleRadius = nil`로 관측 영역 전체를 맞춘다. 변환은 `MinimapSnapshot.cropSideMeters`와 `normalizedPoint`만으로 계산하고, 렌더러는 한 프레임에 이미지 하나만 만든다.
+
+**이유.** 실기기 1차 확인에서 auto-fit 오버레이는 맵이 커질수록 마커가 가장자리로 밀려 "내가 지금 어디인가"를 150pt 안에서 읽을 수 없었다 (`LLM_REPORT.md` 사례 9). 작은 창의 질문은 "내 주변 어디가 비었나"이고, 전체 구조는 전체화면이 답한다. 최종결과물 비디오의 오버레이도 마커가 중앙 부근에 고정돼 있다 (명세 부록 A).
+
+**대안.** 렌더러가 카메라 중심 crop을 따로 만들기 — 프레임마다 비트맵 두 장. View 변환이 공짜라 기각. 반경 값 4m은 실내 복도·방 크기 기준의 초기값이며 실기기 튜닝 대상.
+
+**되돌리기 조건.** 팬·줌을 넣을 때 이 scale·offset이 그대로 줌 상태가 된다 (13절 5번).
+
 ## 4. 스캔 시각화: RealityKit mesh (Metal 포인트클라우드 대신)
 
 **결정.** 카메라 프리뷰 위 시각화는 `ARView` + `sceneReconstruction = .mesh` + `debugOptions.showSceneUnderstanding`으로 처리한다. 직접 렌더러는 없다.
@@ -119,11 +129,13 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **대안.** Metal 포인트클라우드 렌더러 — 점 단위 시각화가 더 직관적이지만 코드량 대비 요구사항 기여도가 낮아 기각.
 
+**켜는 시점.** 첫 구성은 mesh 없이 실행해 카메라 표시를 앞당기고, 트래킹이 `normal`이 되는 순간(그 전에 스캔 시작을 누르면 그때) `sceneReconstruction = .mesh`로 구성을 교체한다. 실기기에서 "스캔 시작 직후 카메라 위에 아무 변화 없는 2초"가 관찰됐는데, 구성 교체 후 첫 mesh 앵커 생성과 와이어프레임 셰이더 컴파일이 그 시점에 몰렸기 때문이다. 트래킹 normal 시점으로 앞당기면 사용자가 버튼을 누를 때 이미 준비돼 있다. 구성 교체는 reset 옵션 없이 하므로 트래킹은 유지된다.
+
 **되돌리기 조건.** 요구사항이 "포인트클라우드 시각화"를 명시하거나, mesh가 지원되지 않는 기기를 지원해야 할 때.
 
 ## 5. 누적 자료구조: 고정 400×400 occupancy grid, 셀 5cm (명세 7-3)
 
-**결정.** `OccupancyGrid.cellSize = 0.05`, `dimension = 400` (20m × 20m). 셀마다 `wallHits`·`floorHits` `UInt16` 카운트. 메모리 상한 약 640KB.
+**결정.** `OccupancyGrid.cellSize = 0.05`, `dimension = 400` (20m × 20m). 셀마다 `wallHits`·`floorHits` `UInt16` 카운트(640KB)와 카메라 색 `SIMD3<UInt8>`(480KB). 메모리 상한 약 1.1MB.
 
 **이유.** 점을 무한 누적하면 메모리가 스캔 시간에 비례해 커져 3분 연속 스캔(R3-2)을 보장할 수 없다. 카운트 격자는 상한이 고정되고 노이즈 컷(`wallHitThreshold = 3`, `floorHitThreshold = 2`)이 자연스럽다. 5cm는 실내 벽 윤곽 구분에 충분하고 depth 노이즈보다 크다. 400셀은 사무실 한 층 복도 정도(20m)를 덮는다.
 
@@ -212,7 +224,7 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 | --- | --- | --- | --- |
 | 평균 / 최저 FPS | ≥30 (기기 기본 유지) | 미측정 | |
 | 콜백 처리 시간 p50 / p95 | <10ms | 미측정 | |
-| 피크 메모리 | 격자 640KB + 앱 기본 | 미측정 | |
+| 피크 메모리 | 격자 1.1MB + 앱 기본 | 미측정 | |
 | 프레임당 처리 포인트 수 | ≤3,072 | 미측정 | |
 | 연속 스캔 시간 | ≥3분, 강제 종료 없음 | 미측정 | |
 
@@ -221,8 +233,8 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 | 관찰 포인트 | 최종결과물 비디오 | 이 구현 | 이유 |
 | --- | --- | --- | --- |
 | 카메라 위 스캔 표시 | 초록 mesh 와이어프레임 | 같음 (RealityKit `showSceneUnderstanding`) | 4절 |
-| 미니맵 내용 | 텍스처가 입혀진 top-down mesh | 벽(밝음)·바닥(어두움)·미관측(반투명) 3단계 격자 | 텍스처 없이도 "어디를 찍었고 어디가 비었는가"에 답한다. 벽 라인 가독성은 격자 쪽이 높고 비용은 훨씬 낮다 |
-| 미니맵 위치 | 좌하단 | 우상단, 탭으로 전체화면 | 하단 중앙의 제어 버튼과 겹치지 않게. 왼손·오른손 어느 쪽도 가리지 않는 위치 |
+| 미니맵 내용 | 텍스처가 입혀진 top-down mesh | 셀별 카메라 색 격자 — 벽은 원색, 바닥은 절반 밝기, 미관측은 반투명 | 텍스처 mesh 없이 셀당 색 하나로 같은 인상을 낸다. 처음엔 흰색·회색 단색이었으나 실기기에서 "실제 색이 안 보인다"는 판단으로 교체 (`LLM_REPORT.md` 사례 9) |
+| 미니맵 위치 | 좌하단, 마커 중앙 고정 | 우상단, 마커 중앙 고정(반경 4m), 탭으로 전체화면 | 하단 중앙의 제어 버튼과 겹치지 않게. 왼손·오른손 어느 쪽도 가리지 않는 위치 |
 | 위치 마커 | 파란 점 + 시야 | 노란 삼각형 + 시야 부채꼴 + 궤적 | 방향을 점보다 명확히. 궤적은 커버리지 판단 보조 |
 | 스캔 종료 후 | 처리 대기 → 2D/3D 결과·측정 | 없음 (실시간 미니맵이 결과) | 선택 항목. 필수 완성 후 착수 조건 |
 
@@ -239,5 +251,5 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 2. **`ARPlaneAnchor` 바닥 추정** — 시작 높이 가정 제거 (6절 되돌리기).
 3. **트래킹 `limited` 중 누적 중단** — 12절 오염 방지. 구현은 플래그 하나.
 4. **드리프트 대응** — 재로컬라이즈 이벤트에서 격자 리셋 또는 최근 N초 누적만 유지하는 링 버퍼.
-5. **미니맵 팬·줌** — 전체화면에서 `MagnifyGesture`·`DragGesture`로 `MinimapSnapshot.normalizedPoint` 변환에 스케일·오프셋 추가.
+5. **미니맵 팬·줌** — 전체화면에서 `MagnifyGesture`·`DragGesture`로 `MinimapView.mapTransform`의 scale·offset을 제스처 상태로 바꾸면 된다. 변환 자체는 3.4절로 이미 있다.
 6. **스캔 결과 내보내기** — mesh anchor를 `.usdz`로 저장 (선택 +2).

@@ -9,12 +9,13 @@ final class MinimapRendererTests: XCTestCase {
         XCTAssertNotNil(snap.image)
         XCTAssertEqual(snap.cropDimension, 1 + 2 * 10)   // 카메라 셀 1 + margin 10 × 2
         XCTAssertEqual(snap.image?.width, snap.cropDimension)
+        XCTAssertEqual(snap.cropSideMeters, 21 * OccupancyGrid.cellSize)
         XCTAssertEqual(snap.totalPoints, 0)
     }
 
     func testCropCoversObservedCellsAndCamera() {
         let grid = OccupancyGrid()
-        grid.accumulate(points: [SIMD3(1, 0, 0)])   // 카메라(0,0)에서 x로 20셀
+        grid.accumulate(points: [ScanPoint(position: SIMD3(1, 0, 0))])   // 카메라(0,0)에서 x로 20셀
         let snap = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 0, trajectory: [])
         XCTAssertEqual(snap.cropDimension, 21 + 20)
         // 카메라(월드 원점)는 crop 안 정규화 좌표 0...1 안에 있어야 한다.

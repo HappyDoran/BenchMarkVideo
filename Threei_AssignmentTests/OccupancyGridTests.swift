@@ -23,9 +23,9 @@ final class OccupancyGridTests: XCTestCase {
         let grid = OccupancyGrid()
         let idx = half * OccupancyGrid.dimension + half
         grid.accumulate(points: [
-            SIMD3(0, 0, 0),                              // wallBand 안 → 벽
-            SIMD3(0, OccupancyGrid.floorBelow - 0.1, 0), // 그 아래 → 바닥
-            SIMD3(0, OccupancyGrid.wallBand.upperBound + 0.5, 0), // 천장 → 버림
+            ScanPoint(position: SIMD3(0, 0, 0)),                              // wallBand 안 → 벽
+            ScanPoint(position: SIMD3(0, OccupancyGrid.floorBelow - 0.1, 0)), // 그 아래 → 바닥
+            ScanPoint(position: SIMD3(0, OccupancyGrid.wallBand.upperBound + 0.5, 0)), // 천장 → 버림
         ])
         XCTAssertEqual(grid.wallHits[idx], 1)
         XCTAssertEqual(grid.floorHits[idx], 1)
@@ -37,7 +37,7 @@ final class OccupancyGridTests: XCTestCase {
 
     func testUsedBoundsGrowAndResetClears() {
         let grid = OccupancyGrid()
-        grid.accumulate(points: [SIMD3(0, 0, 0), SIMD3(1, 0, -1)])
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0, 0, 0)), ScanPoint(position: SIMD3(1, 0, -1))])
         XCTAssertEqual(grid.usedBounds?.maxCol, half + 20)
         XCTAssertEqual(grid.usedBounds?.minRow, half - 20)
         XCTAssertEqual(grid.occupiedCellCount, 2)
@@ -45,5 +45,14 @@ final class OccupancyGridTests: XCTestCase {
         XCTAssertNil(grid.usedBounds)
         XCTAssertEqual(grid.totalPoints, 0)
         XCTAssertEqual(grid.wallHits.reduce(0, +), 0)
+    }
+
+    func testColorFirstHitSetsThenEMA() {
+        let grid = OccupancyGrid()
+        let idx = half * OccupancyGrid.dimension + half
+        grid.accumulate(points: [ScanPoint(position: .zero, color: SIMD3(255, 0, 100))])
+        XCTAssertEqual(grid.colors[idx], SIMD3(255, 0, 100))
+        grid.accumulate(points: [ScanPoint(position: .zero, color: SIMD3(0, 0, 0))])
+        XCTAssertEqual(grid.colors[idx], SIMD3(191, 0, 75))   // (old×3 + new) / 4
     }
 }

@@ -19,7 +19,7 @@
 | `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
 | `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
 | `ViewModel/ScanViewModel.swift` | LLM 생성 | 세션 attach 중계는 MVVM 재배치 때 추가 (사례 4) |
-| `Threei_AssignmentTests/*` (14건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 6). 케이스 선정은 좌표 규약 문서 기준 |
+| `Threei_AssignmentTests/*` (16건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 6). 케이스 선정은 좌표 규약 문서 기준 |
 | `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 명세 대응 절 | LLM 생성 | 세션 2에서 명세 원문을 그대로 제공 → 요구사항 번호·산출물 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 최종결과물 비디오는 프레임을 추출해 LLM이 직접 비교 |
 | 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
 | 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | LLM 초안 + 사람 | 다른 프로젝트의 Agent 작업 지원 체계를 순수 Swift 단일 타깃 규모에 맞게 축소. 구조는 사람이 지정, 본문은 LLM |
@@ -65,6 +65,12 @@
 ### 사례 8 — 전체 diff 코드 리뷰 반영 (LLM 리뷰 → LLM 수정, 사람 승인)
 - **무엇**: `/code-review`(정확성)와 ponytail 리뷰(과잉 설계)를 교차 실행. 정확성 10건 전부 수용: 트래킹 limited 상태 누적 차단(유령 벽), 세션 오류의 일괄 fatal 처리에 재시도 경로 추가, 콜백 hop을 Task(순서 미보장)에서 main 큐 FIFO로 교체, reset 잔상 방지, 마커의 반 셀 오프셋(+0.5), straight/premultiplied alpha 불일치, 수직 시선에서 heading 노이즈 회전, 구조 검사 정규식의 접근 제어자 누락, 암묵 import 2건, 사례 7의 문서 수식.
 - **과잉 설계 리뷰**: 3건(-19줄)만 나옴 — 궤적 조건 6줄→1줄, 상태 배지 switch 병합, 매직 넘버 패딩 제거.
+
+### 사례 9 — 실기기 1차 확인에서 LLM 설계 2건 기각, 1건 부작용 수정 (사람 판단)
+- **무엇**: iPhone 15 Pro에서 처음 돌린 결과 (a) 오버레이 미니맵이 auto-fit이라 맵이 커질수록 마커가 가장자리로 밀림, (b) 미니맵이 벽 흰색·바닥 회색 단색이라 실제 공간과 대응이 안 읽힘, (c) "스캔 시작"을 눌러도 카메라 위 mesh가 2초 뒤에 나타남.
+- **어떻게 알았나**: 전부 사람이 실기기 화면을 보고 지적. (a)(b)는 LLM이 "비용이 낮고 가독성이 높다"고 근거를 달아 제안했고 문서(`DESIGN.md` 11절)에도 그렇게 적혀 있었지만, 150pt 창에서 실제로 보니 "내가 어디 있나"와 "여기가 어디인가"를 둘 다 못 읽었다. (c)는 LLM이 카메라 표시를 앞당기려고 mesh를 스캔 시작 시점으로 미룬 이전 결정(커밋 3d1c4e4)의 부작용.
+- **수정**: (a) 렌더러는 그대로 두고 `MinimapView`가 scale·offset으로 카메라를 중앙에 고정, 반경 4m만 표시 — 전체화면은 auto-fit 유지 (`DESIGN.md` 3.4절). (b) `capturedImage`를 depth 픽셀과 같은 좌표로 샘플링해 셀별 색을 EMA로 누적 (`ScanPoint.color`, `OccupancyGrid.colors`). (c) mesh를 트래킹 `normal` 시점에 미리 켜는 예열로 변경.
+- **교훈**: "비용 대비 가독성" 같은 설계 근거는 실기기 화면 크기에서 다시 검증해야 한다. LLM 근거가 논리적으로 맞아도 150pt 창이라는 물리 제약은 문서만으로 못 본다.
 
 <!-- 실기기 검증 단계에서 좌표 변환·필터 파라미터 관련 사례 추가 예정 -->
 

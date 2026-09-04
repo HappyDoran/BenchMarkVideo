@@ -49,11 +49,11 @@ open Threei_Assignment.xcodeproj
 | 항목 | 상태 | 구현 |
 | --- | --- | --- |
 | R2-1 실시간 갱신 | 🔶 | 콜백마다 격자 누적 → 스냅샷 발행 (약 10Hz). 사후 일괄 처리 단계 없음 |
-| R2-2 Top-down 투영 | 🔶 | 월드 xz 평면, 5cm 셀 400×400 occupancy grid (`Model/OccupancyGrid.swift`) |
+| R2-2 Top-down 투영 | 🔶 | 월드 xz 평면, 5cm 셀 400×400 occupancy grid + 셀별 카메라 색 (`Model/OccupancyGrid.swift`). 벽은 원색, 바닥은 절반 밝기 |
 | R2-3 현재 위치·방향 | 🔶 | 삼각형 마커 + 시야 부채꼴 (`View/MinimapView.swift`), heading은 단위 테스트로 고정 |
-| R2-4 오버레이 배치·전체화면 | 🔶 | 우상단 150pt 오버레이, 탭하면 전체화면, 배경 탭·닫기로 복귀 |
+| R2-4 오버레이 배치·전체화면 | 🔶 | 우상단 150pt 오버레이 — 카메라를 항상 중앙에 두고 반경 4m만 표시. 탭하면 전체화면(관측 영역 전체), 배경 탭·닫기로 복귀 |
 | R2-5 좌표계 기준 명시 | ✅ | 월드 고정 north-up. 이유는 `DESIGN.md` 3.3절 |
-| 선택: auto-fit | 🔶 | 관측 영역 + 카메라를 포함하는 정사각 crop (`Model/MinimapRenderer.swift`) |
+| 선택: auto-fit | 🔶 | 전체화면에서 관측 영역 + 카메라를 포함하는 정사각 crop (`Model/MinimapRenderer.swift`). 오버레이는 카메라 중심 고정 창 (`DESIGN.md` 3.4절) |
 | 선택: 이동 궤적 | 🔶 | 0.25m 간격 궤적선 |
 | 선택: 팬 / 줌 / 회전 | ❌ | 전체화면 전환만. `DESIGN.md` 13절 |
 | 선택: 거리·면적 측정 | ❌ | |
@@ -63,7 +63,7 @@ open Threei_Assignment.xcodeproj
 | 항목 | 상태 | 구현 |
 | --- | --- | --- |
 | R3-1 UI 30fps 이상 | 🔶 | 깊이 처리를 전용 직렬 큐, 100ms 스로틀, stride 4 샘플링. 측정 전 |
-| R3-2 3분 이상 연속 스캔 | 🔶 | 고정 격자(약 640KB)로 메모리 상한 고정. 측정 전 |
+| R3-2 3분 이상 연속 스캔 | 🔶 | 고정 격자(hit 640KB + 색 480KB ≈ 1.1MB)로 메모리 상한 고정. 측정 전 |
 | R3-3 직접 측정한 수치 | ❌ | **미측정.** 측정 방법과 결과표는 `DESIGN.md` 10절. 실기기 확인 후 기입 |
 
 ### R4. UI/UX
@@ -78,7 +78,7 @@ open Threei_Assignment.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 14건 — 좌표 변환·버퍼 필터·격자 누적·crop |
+| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 16건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·색 EMA·crop |
 | auto-fit, 이동 궤적 | 🔶 위 R2 표 |
 | 3D 재구성 뷰어, 내보내기, 거리·면적 측정, 성능 최적화 전후 비교, 드리프트 보정 | ❌ 필수 항목의 실기기 검증이 먼저 |
 
@@ -108,7 +108,7 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 
 ## 성능 측정 결과 (R3)
 
-**미측정.** 측정 방법(Instruments signpost·Allocations·FPS 게이지)과 결과표는 `DESIGN.md` 10절에 있고 실기기 확인 후 채운다. 설계상 예산: 콜백 <10ms, 프레임당 ≤3,072점, 격자 메모리 640KB 고정.
+**미측정.** 측정 방법(Instruments signpost·Allocations·FPS 게이지)과 결과표는 `DESIGN.md` 10절에 있고 실기기 확인 후 채운다. 설계상 예산: 콜백 <10ms, 프레임당 ≤3,072점, 격자 메모리 약 1.1MB 고정.
 
 ## 알려진 버그·제약
 
@@ -124,7 +124,7 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ```bash
-# 1. 단위 테스트 (Model 순수 함수, 시뮬레이터) — 14건
+# 1. 단위 테스트 (Model 순수 함수, 시뮬레이터) — 16건
 xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
@@ -146,11 +146,13 @@ scripts/check-structure.sh
 | --- | --- | --- |
 | 카메라 권한 거부 | R4-2 | 첫 실행에서 거부 → "실행할 수 없습니다" 화면과 설정 열기 링크 표시 |
 | 미지원 기기 | R4-2 | 비-LiDAR 기기 또는 시뮬레이터 → "지원되지 않는 기기" 화면 |
-| 스캔 시작 | R1-1, R1-3 | 시작 후 상태가 "스캔 중", 포인트·셀 카운트 증가, 카메라 위 mesh 와이어프레임 표시 |
+| 스캔 시작 | R1-1, R1-3 | 시작 후 상태가 "스캔 중", 포인트·셀 카운트 증가, 카메라 위 mesh 와이어프레임 표시. 트래킹 normal 이후 시작했으면 mesh가 1초 안에 보임 |
 | 일시정지·재개 | R1-2 | 카운트 증가 멈춤, 위치 마커는 계속 움직임. 재개 시 누적 이어짐 |
 | 초기화 | R1-2 | 미니맵 비워지고 "대기" 상태, 궤적 사라짐 |
 | 실시간 갱신 | R2-1 | 걸으면서 미니맵이 1초 안에 따라 채워짐 |
 | 미니맵 방향 | R2-3, R2-5 | 기기를 제자리에서 회전 → 맵은 고정, 마커 삼각형만 회전 (north-up) |
+| 오버레이 중심 고정 | R2-3, R2-4 | 걸어 다녀도 오버레이의 마커는 중앙, 맵이 밑에서 흐름. 전체화면은 관측 영역 전체가 보임 |
+| 미니맵 색상 | R2-2 | 관측 셀이 카메라에 비친 색으로 칠해짐 — 벽 원색, 바닥 절반 밝기. 흰색 단색이 아님 |
 | 벽 스케일 | R2-2 | 알려진 길이의 벽(예: 3m)을 스캔 → 미니맵 상 셀 수 × 0.05m가 ±10% 이내 |
 | 바닥·천장 필터 | R2-2 | 바닥을 향해 스캔해도 벽(밝은 픽셀)이 생기지 않고, 천장은 무시 |
 | 전체화면 전환 | R2-4 | 미니맵 탭 → 전체화면, 배경 탭 → 복귀 |

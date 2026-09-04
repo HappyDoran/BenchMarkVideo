@@ -18,6 +18,9 @@ nonisolated struct MinimapSnapshot: @unchecked Sendable {
     let totalPoints: Int
     let occupiedCellCount: Int
 
+    /// crop 한 변의 실제 길이(m). View가 "카메라 중심 반경 r" 창을 만들 때 스케일 계산용.
+    var cropSideMeters: Float { Float(cropDimension) * OccupancyGrid.cellSize }
+
     /// 월드 (x, z) → 이미지 정규화 좌표 (0...1). 이미지 밖이면 범위를 벗어난 값 반환.
     /// +0.5: cellIndex는 최근접 반올림이라 셀 중심이 픽셀 중심 — 픽셀 좌상단이 아닌 중심에 맞춘다.
     func normalizedPoint(_ world: SIMD2<Float>) -> CGPoint {
@@ -64,23 +67,27 @@ nonisolated enum MinimapRenderer {
         originC = max(0, min(originC, OccupancyGrid.dimension - dim))
         originR = max(0, min(originR, OccupancyGrid.dimension - dim))
 
-        // RGBA 비트맵: 벽 = 밝은 흰색, 관측된 바닥 = 어두운 회색, 미관측 = 반투명 검정
+        // RGBA 비트맵: 벽 = 카메라 색 그대로, 관측된 바닥 = 카메라 색을 절반 어둡게, 미관측 = 반투명 검정
+        // ponytail: 벽/바닥 구분을 밝기 차로만 둠. 실기기에서 벽 라인이 안 읽히면 벽 테두리(이웃 셀 검사) 추가.
         var pixels = [UInt8](repeating: 0, count: dim * dim * 4)
         grid.wallHits.withUnsafeBufferPointer { walls in
             grid.floorHits.withUnsafeBufferPointer { floors in
-                for r in 0..<dim {
-                    let gridRowBase = (originR + r) * OccupancyGrid.dimension + originC
-                    let pixRowBase = r * dim * 4
-                    for c in 0..<dim {
-                        let w = walls[gridRowBase + c]
-                        let f = floors[gridRowBase + c]
-                        let o = pixRowBase + c * 4
-                        if w >= OccupancyGrid.wallHitThreshold {
-                            pixels[o] = 235; pixels[o+1] = 235; pixels[o+2] = 240; pixels[o+3] = 255
-                        } else if f >= OccupancyGrid.floorHitThreshold {
-                            pixels[o] = 70; pixels[o+1] = 75; pixels[o+2] = 85; pixels[o+3] = 210
-                        } else {
-                            pixels[o+3] = 150  // 미관측: 반투명 검정
+                grid.colors.withUnsafeBufferPointer { colors in
+                    for r in 0..<dim {
+                        let gridRowBase = (originR + r) * OccupancyGrid.dimension + originC
+                        let pixRowBase = r * dim * 4
+                        for c in 0..<dim {
+                            let w = walls[gridRowBase + c]
+                            let f = floors[gridRowBase + c]
+                            let rgb = colors[gridRowBase + c]
+                            let o = pixRowBase + c * 4
+                            if w >= OccupancyGrid.wallHitThreshold {
+                                pixels[o] = rgb.x; pixels[o+1] = rgb.y; pixels[o+2] = rgb.z; pixels[o+3] = 255
+                            } else if f >= OccupancyGrid.floorHitThreshold {
+                                pixels[o] = rgb.x / 2; pixels[o+1] = rgb.y / 2; pixels[o+2] = rgb.z / 2; pixels[o+3] = 230
+                            } else {
+                                pixels[o+3] = 150  // 미관측: 반투명 검정
+                            }
                         }
                     }
                 }

@@ -80,7 +80,22 @@ final class DepthFrameProcessorTests: XCTestCase {
                                                      cameraTransform: matrix_identity_float4x4)
         // stride 4: u ∈ {0,4}, v ∈ {0,4} → 4점. 전부 z = -2.
         XCTAssertEqual(points.count, 4)
-        XCTAssertTrue(points.allSatisfy { $0.z == -2 })
+        XCTAssertTrue(points.allSatisfy { $0.position.z == -2 })
+        XCTAssertTrue(points.allSatisfy { $0.color == SIMD3(255, 255, 255) }, "capturedImage 없으면 흰색")
+    }
+
+    func testWorldPointsSamplesColorFromCapturedImage() {
+        // 16×12 420f biplanar: Y=200, Cb=128, Cr=128 → 회색 (200,200,200). 색차 0이라 변환 계수와 무관.
+        let image = makeBuffer(width: 16, height: 12, format: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) { _, _ in }
+        CVPixelBufferLockBaseAddress(image, [])
+        memset(CVPixelBufferGetBaseAddressOfPlane(image, 0), 200, CVPixelBufferGetBytesPerRowOfPlane(image, 0) * 12)
+        memset(CVPixelBufferGetBaseAddressOfPlane(image, 1), 128, CVPixelBufferGetBytesPerRowOfPlane(image, 1) * 6)
+        CVPixelBufferUnlockBaseAddress(image, [])
+        let points = DepthFrameProcessor.worldPoints(depthMap: depthBuffer(2), confidenceMap: nil, capturedImage: image,
+                                                     intrinsics: intrinsics, imageResolution: imageResolution,
+                                                     cameraTransform: matrix_identity_float4x4)
+        XCTAssertEqual(points.count, 4)
+        XCTAssertTrue(points.allSatisfy { $0.color == SIMD3(200, 200, 200) })
     }
 
     func testWorldPointsDropsLowConfidence() {
