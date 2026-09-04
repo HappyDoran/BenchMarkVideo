@@ -98,12 +98,13 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.grid.reset()
             self.trajectory = []
             self.lastHeading = 0
-            self.didRequestMeshWarmUp = false
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
                                                     cameraHeading: 0, trajectory: []))
         }
-        runSession(reset: true, withMesh: false)
+        // 카메라는 이미 떠 있으므로 mesh를 바로 켠 채 재시작 — 구성 교체 한 번을 아낀다.
+        // 남는 지연은 resetSceneReconstruction 후 ARKit이 첫 mesh 앵커를 만드는 시간(약 1초).
+        runSession(reset: true, withMesh: true)
     }
 
     // MARK: - ARSessionDelegate (processingQueue에서 호출됨)

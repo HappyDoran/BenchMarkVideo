@@ -135,6 +135,8 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 그런데 예열을 앞당기자 스캔 시작 전에도 와이어프레임이 보였다. 재구성(`sceneReconstruction`, 세션 구성)과 표시(`debugOptions.showSceneUnderstanding`, ARView)는 별개이므로 재구성은 첫 프레임부터 돌리고, 표시는 `ARPreviewView(showMesh:)`로 스캔 상태에 묶는다 — `ready`에서 숨김, `scanning`·`paused`에서 표시. 예열 효과(앵커·셰이더 준비)는 유지되고 사용자에게는 스캔 시작과 함께 mesh가 나타난다.
 
+**초기화 후.** 초기화는 `resetSceneReconstruction`으로 mesh를 전부 지우므로 다음 스캔 시작 때 ARKit이 첫 앵커를 다시 만들 때까지 약 1초가 걸린다. 이건 "초기화 = 스캔 결과를 지운다"는 의미에서 오는 지연이라 남겨 둔다. 대신 초기화 세션은 mesh를 켠 채 바로 재시작해 구성 교체를 한 번으로 줄인다 (처음 실행 때만 mesh 없이 시작한다 — 카메라 표시가 우선인 구간은 그때뿐이다).
+
 **되돌리기 조건.** 요구사항이 "포인트클라우드 시각화"를 명시하거나, mesh가 지원되지 않는 기기를 지원해야 할 때.
 
 ## 5. 누적 자료구조: 고정 400×400 occupancy grid, 셀 5cm (명세 7-3)
