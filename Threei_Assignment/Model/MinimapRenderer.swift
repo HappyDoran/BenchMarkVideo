@@ -23,6 +23,11 @@ nonisolated struct MinimapSnapshot: @unchecked Sendable {
     /// crop 한 변의 실제 길이(m). View가 "카메라 중심 반경 r" 창을 만들 때 스케일 계산용.
     var cropSideMeters: Float { Float(cropDimension) * OccupancyGrid.cellSize }
 
+    /// 관측 면적(m²) = 관측 셀 수 × 셀 면적. 커버리지 피드백·면적 측정 표시용.
+    var observedAreaM2: Float {
+        Float(occupiedCellCount) * OccupancyGrid.cellSize * OccupancyGrid.cellSize
+    }
+
     /// 정규화 좌표(0...1, 전체화면 항등 변환 기준) → 월드 (x, z). normalizedPoint의 역변환 — 거리 측정 탭 입력용.
     func worldPoint(normalized p: CGPoint) -> SIMD2<Float> {
         let c = SIMD2(Float(p.x) * Float(cropDimension) - 0.5 + Float(cropOriginCol),

@@ -17,6 +17,10 @@ final class MinimapRendererTests: XCTestCase {
         let grid = OccupancyGrid()
         grid.accumulate(points: [ScanPoint(position: SIMD3(1, 0, -0.5))])
         let snap = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 0, trajectory: [])
+        // 관측 면적 = 셀 수 × 셀 면적
+        XCTAssertEqual(snap.observedAreaM2,
+                       Float(snap.occupiedCellCount) * OccupancyGrid.cellSize * OccupancyGrid.cellSize,
+                       accuracy: 1e-6)
         // 왕복: 월드 → 정규화 → 월드가 원래 점으로 돌아와야 거리 측정 탭 변환이 성립
         for world in [SIMD2<Float>(1, -0.5), SIMD2(0, 0), SIMD2(-0.3, 0.7)] {
             let back = snap.worldPoint(normalized: snap.normalizedPoint(world))

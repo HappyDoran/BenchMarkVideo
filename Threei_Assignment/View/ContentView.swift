@@ -179,9 +179,14 @@ struct ContentView: View {
                 .aspectRatio(1, contentMode: .fit)
                 .frame(maxWidth: .infinity)
 
-                Text(measureLabel)
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.8))
+                VStack(spacing: 2) {
+                    if let snapshot = viewModel.snapshot {
+                        Text(String(format: "관측 면적 %.1f m²", snapshot.observedAreaM2))
+                    }
+                    Text(measureLabel)
+                }
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.8))
 
                 HStack(spacing: 16) {
                     if let url = viewModel.exportURL {

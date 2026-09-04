@@ -56,7 +56,7 @@ open Threei_Assignment.xcodeproj
 | 선택: auto-fit | ✅ | 전체화면에서 관측 영역 + 카메라를 포함하는 정사각 crop (`Model/MinimapRenderer.swift`). 오버레이는 카메라 중심 고정 창 (`DESIGN.md` 3.4절) |
 | 선택: 이동 궤적 | ✅ | 0.25m 간격 궤적선 — 일시정지 중에도 기록, 트래킹 normal일 때만 |
 | 선택: 팬 / 줌 / 회전 | ❌ | 전체화면 전환만. `DESIGN.md` 13절 |
-| 선택: 거리 측정 | 🔶 | 전체화면에서 두 점 탭 → 월드 거리 표시 (`MinimapSnapshot.worldPoint` 역변환, 왕복 단위 테스트). 실기기 미검증 |
+| 선택: 거리·면적 측정 | 🔶 | 전체화면에서 두 점 탭 → 월드 거리 표시 (`MinimapSnapshot.worldPoint` 역변환, 왕복 단위 테스트) + 관측 면적 m² (셀 수 × 셀 면적). 실기기 미검증 |
 
 ### R3. 실시간 성능
 
@@ -81,7 +81,7 @@ open Threei_Assignment.xcodeproj
 | 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 16건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·색 EMA·crop |
 | auto-fit, 이동 궤적 | 🔶 위 R2 표 |
 | 성능 최적화 전후 비교 (+2) | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
-| 거리 측정 (+2) | 🔶 전체화면 두 점 탭 → 거리(m). 실기기 미검증 |
+| 거리·면적 측정 (+2) | 🔶 전체화면 두 점 탭 → 거리(m) + 관측 면적(m²). 실기기 미검증 |
 | 스캔 결과 내보내기 (+2) | 🔶 관측 셀 → .ply 점군(색 포함) + ShareLink (`Model/GridExporter.swift`). 실기기 미검증 |
 | 3D 재구성 뷰어, 면적 측정, 드리프트 보정 | ❌ (드리프트는 실측상 보정 불요 — 방 규모에서 셀 이하) |
 
