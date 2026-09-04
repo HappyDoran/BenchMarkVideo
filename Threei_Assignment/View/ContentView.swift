@@ -42,8 +42,8 @@ struct ContentView: View {
                     statusBar
                     Spacer()
                     if !isMinimapExpanded {
-                        // ponytail: 반경 4m 고정. 팬·줌을 넣으면 이 값이 줌 상태가 된다.
-                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 4)
+                        // ponytail: 반경 6m 고정. 팬·줌을 넣으면 이 값이 줌 상태가 된다.
+                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 6)
                             .frame(width: 150)
                             .onTapGesture { isMinimapExpanded = true }
                     }

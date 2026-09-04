@@ -3,6 +3,7 @@ import SwiftUI
 /// Top-down 미니맵. north-up 고정(월드 좌표 고정), 사용자 마커가 회전.
 /// 맵 이미지는 auto-fit crop된 정사각형 — 뷰도 정사각형으로 쓴다.
 /// `visibleRadius`를 주면 이미지를 스케일·이동해 카메라를 항상 중앙에 두고 반경 r(m)만 보인다 (오버레이용).
+/// 창이 카메라를 따라 미끄러지므로 걸어 들어간 영역은 나타나고 벗어난 영역은 사라진다 — 격자 데이터는 그대로 남는다.
 /// nil이면 관측 영역 전체를 맞춰 보인다 (전체화면용).
 struct MinimapView: View {
     let snapshot: MinimapSnapshot?
