@@ -25,7 +25,7 @@ struct ContentView: View {
         ZStack {
             if isARMounted {
                 ARPreviewView(onSessionReady: { viewModel.attach(session: $0) },
-                              showMesh: viewModel.state != .ready)   // 일시정지 중엔 유지, 초기화하면 숨김
+                              showMesh: viewModel.state == .scanning)   // mesh 보임 = 지금 기록 중. 재구성은 계속 돌아 재개 시 즉시 표시
                     .ignoresSafeArea()
             } else {
                 Color.black.ignoresSafeArea()
@@ -83,6 +83,10 @@ struct ContentView: View {
             .padding(.vertical, 6)
             .background(.ultraThinMaterial, in: Capsule())
 
+            // 초기화 직후 스캔 시작 → 첫 mesh 앵커까지 약 1초 공백에 이름을 붙임
+            if viewModel.state == .scanning && !viewModel.isMeshReady {
+                meshLoadingBadge
+            }
             if let warning = viewModel.trackingMessage {
                 warningBadge(warning, icon: "exclamationmark.triangle.fill")
             }
@@ -90,6 +94,19 @@ struct ContentView: View {
                 warningBadge("세션이 중단되었습니다", icon: "pause.circle.fill")
             }
         }
+    }
+
+    private var meshLoadingBadge: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(.white)
+            Text("주변 인식 중…")
+        }
+        .font(.footnote)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
     private func warningBadge(_ text: String, icon: String) -> some View {

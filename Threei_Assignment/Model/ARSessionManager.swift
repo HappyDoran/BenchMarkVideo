@@ -6,6 +6,8 @@ nonisolated enum ScanEvent: Sendable {
     case trackingChanged(message: String?)   // nil = 정상
     case sessionFailed(message: String, isPermissionDenied: Bool)
     case interruptionChanged(isInterrupted: Bool)
+    /// 첫 mesh 앵커 생성됨 — 초기화 후 "주변 인식 중…" 배지 해제 신호.
+    case meshReady
 }
 
 /// ARSession 소유·제어 + 깊이 파이프라인 구동.
@@ -34,6 +36,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var lastHeading: Float = 0
     /// mesh 예열 요청 여부 — 첫 프레임에 한 번만.
     private var didRequestMeshWarmUp = false
+    /// meshReady 발행 여부 — 세션 시작·초기화마다 첫 앵커에 한 번만.
+    private var didReportMeshReady = false
 
     /// processingQueue에서 호출됨 — 받는 쪽에서 MainActor로 hop할 것.
     var onSnapshot: (@Sendable (MinimapSnapshot) -> Void)?
@@ -54,7 +58,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         self.session = session
         session.delegate = self
         session.delegateQueue = processingQueue
-        processingQueue.async { self.didRequestMeshWarmUp = false }  // retry로 ARView가 재생성될 때도 예열
+        processingQueue.async {
+            self.didRequestMeshWarmUp = false  // retry로 ARView가 재생성될 때도 예열
+            self.didReportMeshReady = false    // 새 세션 = 앵커 없음
+        }
         runSession(reset: false, withMesh: false)
         #if DEBUG
         print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
@@ -102,6 +109,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.grid.reset()
             self.trajectory = []
             self.lastHeading = 0
+            self.didReportMeshReady = false  // resetSceneReconstruction으로 앵커가 지워짐 — 재생성 감지 재무장
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
                                                     cameraHeading: 0, trajectory: []))
@@ -165,6 +173,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                                               cameraHeading: lastHeading,
                                               trajectory: trajectory)
         onSnapshot?(snapshot)
+    }
+
+    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        guard !didReportMeshReady, anchors.contains(where: { $0 is ARMeshAnchor }) else { return }
+        didReportMeshReady = true
+        onEvent?(.meshReady)
     }
 
     func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {

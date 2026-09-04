@@ -17,6 +17,8 @@ final class ScanViewModel {
     /// 트래킹 불안정 안내 (nil = 정상).
     private(set) var trackingMessage: String?
     private(set) var isInterrupted = false
+    /// 첫 mesh 앵커 도착 여부 — false인 채 스캔 중이면 "주변 인식 중…" 배지.
+    private(set) var isMeshReady = false
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
     private(set) var fatalMessage: String?
     private(set) var isPermissionDenied = false
@@ -47,6 +49,8 @@ final class ScanViewModel {
             isPermissionDenied = isPermission
         case .interruptionChanged(let interrupted):
             isInterrupted = interrupted
+        case .meshReady:
+            isMeshReady = true
         }
     }
 
@@ -70,6 +74,7 @@ final class ScanViewModel {
     func reset() {
         sessionManager.reset()
         snapshot = nil
+        isMeshReady = false  // resetSceneReconstruction — 다음 meshReady까지 배지 대상
         state = .ready
     }
 
