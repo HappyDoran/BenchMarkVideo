@@ -12,8 +12,9 @@ nonisolated final class OccupancyGrid {
     static let dimension = 400
     // ponytail: 20m 초과 영역은 버림. 대공간 필요해지면 원점 재중심 or chunk 확장.
 
-    /// 높이 밴드 (월드 y, 원점 = 스캔 시작 시 기기 높이 ≈ 바닥 위 1.2~1.5m).
+    /// 높이 밴드 (스캔 시작 시 기기 높이 기준 상대 y ≈ 바닥 위 1.2~1.5m 가정).
     /// wallBand: 바닥 위 약 0.3~2.2m 구간 → 벽·가구. 그 아래 = 바닥, 위 = 천장(버림).
+    /// 월드 y 원점은 앱 실행 시점이라 스캔 시작 높이와 다를 수 있음 — accumulate의 originY로 재기준.
     // ponytail: 시작 높이 가정에 의존. 드리프트/정확도 문제 보이면 ARPlaneAnchor 바닥 추정으로 교체.
     static let wallBand: ClosedRange<Float> = -0.9...0.7
     static let floorBelow: Float = -0.9
@@ -41,14 +42,16 @@ nonisolated final class OccupancyGrid {
         return (col, row)
     }
 
-    func accumulate(points: [ScanPoint]) {
+    /// originY: 스캔 시작 시 카메라 월드 y — 높이 밴드를 실행 시점이 아닌 스캔 시작 높이 기준으로 만든다.
+    func accumulate(points: [ScanPoint], originY: Float = 0) {
         for sp in points {
             let p = sp.position
             guard let (col, row) = Self.cellIndex(x: p.x, z: p.z) else { continue }
             let idx = row * Self.dimension + col
 
-            let isWall = Self.wallBand.contains(p.y)
-            guard isWall || p.y < Self.floorBelow else { continue }  // 천장
+            let relY = p.y - originY
+            let isWall = Self.wallBand.contains(relY)
+            guard isWall || relY < Self.floorBelow else { continue }  // 천장
             let isNewCell = wallHits[idx] == 0 && floorHits[idx] == 0
             if isNewCell { occupiedCellCount += 1 }
             if isWall {

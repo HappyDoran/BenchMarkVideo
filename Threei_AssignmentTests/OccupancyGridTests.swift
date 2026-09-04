@@ -47,6 +47,20 @@ final class OccupancyGridTests: XCTestCase {
         XCTAssertEqual(grid.wallHits.reduce(0, +), 0)
     }
 
+    func testAccumulateOriginYRebasesHeightBands() {
+        let grid = OccupancyGrid()
+        let idx = half * OccupancyGrid.dimension + half
+        // 책상(0.7m)에서 실행 후 1.5m로 들고 스캔 시작: originY = +0.8.
+        // 바닥 점(월드 y = -0.7)은 상대 -1.5 → 벽이 아니라 바닥으로 분류돼야 한다.
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0, -0.7, 0))], originY: 0.8)
+        XCTAssertEqual(grid.wallHits[idx], 0)
+        XCTAssertEqual(grid.floorHits[idx], 1)
+        // originY 없이는 같은 점이 벽 밴드에 들어간다 (기존 버그 재현 고정)
+        let unrebased = OccupancyGrid()
+        unrebased.accumulate(points: [ScanPoint(position: SIMD3(0, -0.7, 0))])
+        XCTAssertEqual(unrebased.wallHits[idx], 1)
+    }
+
     func testColorFirstHitSetsThenEMA() {
         let grid = OccupancyGrid()
         let idx = half * OccupancyGrid.dimension + half

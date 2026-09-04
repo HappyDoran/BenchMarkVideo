@@ -33,6 +33,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var isAccumulating = false
     /// 한 번이라도 스캔을 시작했는가 — 궤적 기록 조건. reset에서 해제.
     private var hasStarted = false
+    /// 스캔 시작 시 카메라 월드 y — 높이 밴드 기준. 월드 원점은 앱 실행 시점에 고정되므로
+    /// (책상에 둔 채 실행 후 들고 스캔 등) 실행 높이와 스캔 높이의 차를 여기로 보정한다.
+    private var scanOriginY: Float?
     private var lastProcessedTime: TimeInterval = 0
     private var trajectory: [SIMD2<Float>] = []
     /// 마지막 유효 yaw — 카메라가 수직(바닥/천장)을 볼 때 노이즈 회전 방지용.
@@ -131,6 +134,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async {
             self.isAccumulating = false
             self.hasStarted = false
+            self.scanOriginY = nil
             self.grid.reset()
             self.trajectory = []
             self.lastHeading = 0
@@ -173,6 +177,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
         let transform = frame.camera.transform
         let position = SIMD2(transform.columns.3.x, transform.columns.3.z)
+        // 스캔 첫 프레임의 카메라 높이를 밴드 기준으로 고정 (reset에서 해제)
+        if hasStarted, scanOriginY == nil { scanOriginY = transform.columns.3.y }
         // 시선이 수직에 가까우면 yaw가 노이즈라 마지막 유효값 유지
         let look = -transform.columns.2
         if look.x * look.x + look.z * look.z > 0.01 {
@@ -189,7 +195,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     intrinsics: frame.camera.intrinsics,
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
-                grid.accumulate(points: points)
+                grid.accumulate(points: points, originY: scanOriginY ?? 0)
                 #if DEBUG
                 debugProcessedCount += 1
                 if debugProcessedCount % 30 == 0 {  // 약 3초마다 — Instruments 없이 log collect로 판독
