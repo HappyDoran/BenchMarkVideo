@@ -10,7 +10,8 @@ err() { echo "✗ $1"; echo x >>"$ERRS"; }
 
 # 1. 필수 문서
 for f in AGENTS.md TECH_RULES.md README.md DESIGN.md LLM_REPORT.md \
-         docs/AI_AGENT_HARNESS.md docs/architecture/folder-structure.md docs/spec/requirements.md; do
+         docs/AI_AGENT_HARNESS.md docs/architecture/folder-structure.md docs/spec/requirements.md \
+         docs/spec/gap-analysis.md; do
   [ -f "$f" ] || err "필수 문서 없음: $f"
 done
 
