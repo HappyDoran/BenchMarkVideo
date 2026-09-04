@@ -27,6 +27,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | 프로젝트 개요, 요구사항 대응표, 데모, 빌드·실행·검증 명령, 실기기 수동 검증 절차 | `README.md` | 기능·요구사항 상태·검증 절차 변경 |
 | 요구사항 번호(R1~R4), 선택 항목 배점, 산출물·평가 조건 | `docs/spec/requirements.md` | 요구사항 명세 원문 변경 |
 | 명세 대비 갭 분석, 보완 백로그와 우선순위, 가산점 후보 | `docs/spec/gap-analysis.md` | 백로그 항목 완료, 실기기 검증으로 판정 변경, 재점검 |
+| 실기기 검증 회차별 진행 상태, 코드 사전 추적 결과 | `docs/spec/device-test-checklist.md` | 실기기 회차 완료, 런타임 동작 변경으로 시나리오 추가 |
 | 설계 판단 근거 (MVVM 채택, 시각화 방식, 격자·스로틀·필터 파라미터) | `DESIGN.md` | 구조 판단 또는 파이프라인 파라미터 변경 |
 | 최종결과물 데모 영상 관찰과 현재 구현 범위 차이 | `DESIGN.md` §9 | 최종결과물 영상 재분석, 요구사항 변경 |
 | MVVM 계층 배치 규칙과 허용 의존 방향 | `.codex/skills/mvvm-architecture/SKILL.md` | 계층 규칙, 허용 import 변경 |
@@ -51,7 +52,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | 모든 코드 변경 | `TECH_RULES.md`, `.codex/skills/test-policy/SKILL.md` |
 | 파일 추가·이동, 리팩토링 | `.codex/skills/mvvm-architecture/SKILL.md`, `docs/architecture/folder-structure.md` |
 | 파이프라인 파라미터(격자·스로틀·높이 밴드·샘플링) 튜닝 | `DESIGN.md`, `TECH_RULES.md` 좌표계 절 |
-| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `README.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
+| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `docs/spec/device-test-checklist.md`, `README.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
 | 문서·Agent 체계 변경 | `docs/AI_AGENT_HARNESS.md`, 이 문서의 문서 추가 규칙 |
 
 ## 절대 금지 (이 문서가 소유)

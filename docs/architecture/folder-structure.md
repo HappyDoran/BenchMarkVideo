@@ -20,7 +20,8 @@ last_verified: 2026-09-04
 │   ├── AI_AGENT_HARNESS.md           # Agent 작업 지원 체계 설명
 │   ├── architecture/folder-structure.md
 │   ├── spec/requirements.md              # 요구사항 번호·산출물·배점 요약
-│   └── spec/gap-analysis.md              # 명세 대비 갭 분석·보완 백로그
+│   ├── spec/gap-analysis.md              # 명세 대비 갭 분석·보완 백로그
+│   └── spec/device-test-checklist.md     # 실기기 검증 회차별 진행 상태
 ├── .codex/skills/                    # canonical skill (Codex 진입)
 │   ├── mvvm-architecture/SKILL.md
 │   ├── test-policy/SKILL.md
