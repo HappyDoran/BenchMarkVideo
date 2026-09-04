@@ -137,6 +137,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async { self.isAccumulating = false }
     }
 
+    /// 현재 격자를 .ply 점군 텍스트로. grid는 큐 전용이라 큐에서 직렬화하고,
+    /// 완성 문자열만 콜백으로 넘긴다 (받는 쪽에서 MainActor로 hop).
+    func exportPly(_ completion: @escaping @Sendable (String) -> Void) {
+        processingQueue.async { completion(GridExporter.ply(grid: self.grid)) }
+    }
+
     /// 그리드·궤적·트래킹 전부 초기화.
     func reset() {
         processingQueue.async {

@@ -40,6 +40,11 @@ nonisolated final class OccupancyGrid {
         SIMD2(x / cellSize + Float(dimension / 2), z / cellSize + Float(dimension / 2))
     }
 
+    /// 연속 셀 좌표 → 월드 (x, z). continuousCell의 역변환 — 미니맵 탭 위치를 월드로 되돌릴 때 사용.
+    static func worldXZ(continuousCell c: SIMD2<Float>) -> SIMD2<Float> {
+        (c - Float(dimension / 2)) * cellSize
+    }
+
     /// 월드 (x, z) → 셀 (col, row). row는 +z 방향으로 증가 (이미지 아래 방향 = north-up).
     static func cellIndex(x: Float, z: Float) -> (col: Int, row: Int)? {
         let c = continuousCell(x: x, z: z)

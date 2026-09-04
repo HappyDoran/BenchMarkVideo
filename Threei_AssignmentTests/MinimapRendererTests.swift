@@ -13,6 +13,18 @@ final class MinimapRendererTests: XCTestCase {
         XCTAssertEqual(snap.totalPoints, 0)
     }
 
+    func testWorldPointIsInverseOfNormalizedPoint() {
+        let grid = OccupancyGrid()
+        grid.accumulate(points: [ScanPoint(position: SIMD3(1, 0, -0.5))])
+        let snap = MinimapRenderer.render(grid: grid, cameraPosition: .zero, cameraHeading: 0, trajectory: [])
+        // 왕복: 월드 → 정규화 → 월드가 원래 점으로 돌아와야 거리 측정 탭 변환이 성립
+        for world in [SIMD2<Float>(1, -0.5), SIMD2(0, 0), SIMD2(-0.3, 0.7)] {
+            let back = snap.worldPoint(normalized: snap.normalizedPoint(world))
+            XCTAssertEqual(back.x, world.x, accuracy: 0.001)
+            XCTAssertEqual(back.y, world.y, accuracy: 0.001)
+        }
+    }
+
     func testUnchangedGridReusesImageAndChangeRerenders() {
         let grid = OccupancyGrid()
         grid.accumulate(points: [ScanPoint(position: .zero)])

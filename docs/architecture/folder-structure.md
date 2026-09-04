@@ -32,7 +32,9 @@ last_verified: 2026-09-04
 ├── Threei_AssignmentTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
 │   ├── DepthFrameProcessorTests.swift    # intrinsics 스케일, flipYZ, column-major, heading, 버퍼 필터
 │   ├── OccupancyGridTests.swift          # cellIndex, 벽/바닥/천장 분기, bounds, reset
-│   └── MinimapRendererTests.swift        # crop 크기, 정규화 좌표
+│   ├── MinimapRendererTests.swift        # crop 크기, 정규화 좌표·역변환, 이미지 재사용
+│   ├── ScanViewModelTests.swift          # 이벤트 → 배지 상태, retry·reset 전이
+│   └── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색
 └── Threei_Assignment/
     ├── App/
     │   └── Threei_AssignmentApp.swift    # @main. ContentView 진입
@@ -40,7 +42,8 @@ last_verified: 2026-09-04
     │   ├── ARSessionManager.swift        # ARSession delegate, 스로틀, 궤적, ScanEvent 발행
     │   ├── DepthFrameProcessor.swift     # depth → 월드 점 unprojection, heading (순수 함수)
     │   ├── OccupancyGrid.swift           # 5cm × 400×400 hit 격자, 높이 밴드 필터
-    │   └── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
+    │   ├── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
+    │   └── GridExporter.swift            # 격자 → .ply 점군 텍스트 (내보내기)
     ├── ViewModel/                        # MainActor
     │   └── ScanViewModel.swift           # @Observable 상태 허브, ScanState, 세션 attach 중계
     ├── View/                             # SwiftUI, ViewModel과 불변 스냅샷만 참조

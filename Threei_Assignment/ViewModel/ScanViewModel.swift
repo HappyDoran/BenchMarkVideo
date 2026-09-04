@@ -19,6 +19,8 @@ final class ScanViewModel {
     private(set) var isInterrupted = false
     /// 첫 mesh 앵커 도착 여부 — false인 채 스캔 중이면 "주변 인식 중…" 배지.
     private(set) var isMeshReady = false
+    /// 내보내기용 .ply 임시 파일 — 전체화면 진입 시 생성, ShareLink가 소비.
+    private(set) var exportURL: URL?
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
     private(set) var fatalMessage: String?
     private(set) var isPermissionDenied = false
@@ -83,6 +85,18 @@ final class ScanViewModel {
         // 그 사이 도착하는 옛 그리드 스냅샷이 한 프레임 되살아난다.
         isMeshReady = false  // resetSceneReconstruction — 다음 meshReady까지 배지 대상
         state = .ready
+    }
+
+    /// 현재 격자를 .ply로 임시 파일에 써서 exportURL 발행 — 전체화면 미니맵의 공유 버튼용 (가산점: 내보내기).
+    func prepareExport() {
+        exportURL = nil
+        sessionManager.exportPly { [weak self] text in
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("scan.ply")
+            try? text.write(to: url, atomically: true, encoding: .utf8)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.exportURL = url }
+            }
+        }
     }
 
     /// 일시 오류(트래킹 실패, 카메라 점유 등) 후 재시도. 권한 거부는 설정 변경 없이는 복구 불가.

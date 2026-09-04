@@ -1,10 +1,13 @@
 import Foundation
+import simd
 import SwiftUI
 import UIKit
 
 struct ContentView: View {
     @State private var viewModel = ScanViewModel()
     @State private var isMinimapExpanded = false
+    /// 거리 측정 점(월드 xz, 최대 2개) — 전체화면에서 탭으로 지정, 세 번째 탭은 새 측정 시작.
+    @State private var measurePoints: [SIMD2<Float>] = []
     /// ARView(RealityKit 엔진) 생성은 메인 스레드를 수 초 블로킹 —
     /// 첫 프레임을 먼저 그리고 나서 마운트해 흰 런치 화면 체류를 없앤다.
     @State private var isARMounted = false
@@ -164,23 +167,91 @@ struct ContentView: View {
     private var expandedMinimap: some View {
         ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
-                .onTapGesture { isMinimapExpanded = false }
+                .onTapGesture { closeExpandedMinimap() }
             VStack(spacing: 12) {
-                MinimapView(snapshot: viewModel.snapshot)
-                    .frame(maxWidth: .infinity)
-                Button {
-                    isMinimapExpanded = false
-                } label: {
-                    Label("닫기", systemImage: "xmark")
-                        .font(.body.weight(.semibold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .foregroundStyle(.white)
+                GeometryReader { geo in
+                    MinimapView(snapshot: viewModel.snapshot)
+                        .overlay { measureOverlay(side: geo.size.width) }
+                        .onTapGesture(coordinateSpace: .local) { p in
+                            addMeasurePoint(p, side: geo.size.width)
+                        }
+                }
+                .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+
+                Text(measureLabel)
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.8))
+
+                HStack(spacing: 16) {
+                    if let url = viewModel.exportURL {
+                        ShareLink(item: url) {
+                            Label("내보내기", systemImage: "square.and.arrow.up")
+                                .font(.body.weight(.semibold))
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    Button {
+                        closeExpandedMinimap()
+                    } label: {
+                        Label("닫기", systemImage: "xmark")
+                            .font(.body.weight(.semibold))
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .foregroundStyle(.white)
+                    }
                 }
             }
             .padding(24)
         }
+        .onAppear { viewModel.prepareExport() }
+    }
+
+    private func closeExpandedMinimap() {
+        isMinimapExpanded = false
+        measurePoints = []
+    }
+
+    // MARK: - 거리 측정 (전체화면 전용 — 항등 변환이라 뷰 좌표/side = 정규화 좌표)
+
+    private var measureLabel: String {
+        switch measurePoints.count {
+        case 2: String(format: "거리 %.2f m", simd_distance(measurePoints[0], measurePoints[1]))
+        case 1: "두 번째 점을 탭"
+        default: "두 점을 탭해 거리 측정"
+        }
+    }
+
+    private func addMeasurePoint(_ p: CGPoint, side: CGFloat) {
+        guard side > 0, let snapshot = viewModel.snapshot else { return }
+        let world = snapshot.worldPoint(normalized: CGPoint(x: p.x / side, y: p.y / side))
+        measurePoints = measurePoints.count >= 2 ? [world] : measurePoints + [world]
+    }
+
+    private func measureOverlay(side: CGFloat) -> some View {
+        Canvas { context, _ in
+            guard let snapshot = viewModel.snapshot else { return }
+            let points = measurePoints.map { w -> CGPoint in
+                let n = snapshot.normalizedPoint(w)
+                return CGPoint(x: n.x * side, y: n.y * side)
+            }
+            if points.count == 2 {
+                var line = Path()
+                line.move(to: points[0])
+                line.addLine(to: points[1])
+                context.stroke(line, with: .color(.orange), lineWidth: 2)
+            }
+            for p in points {
+                let dot = Path(ellipseIn: CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10))
+                context.fill(dot, with: .color(.orange))
+                context.stroke(dot, with: .color(.white), lineWidth: 1.5)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     // MARK: - 예외 화면
