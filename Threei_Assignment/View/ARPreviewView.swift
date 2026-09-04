@@ -1,6 +1,10 @@
 import ARKit
 import RealityKit
 import SwiftUI
+#if DEBUG
+import os
+import QuartzCore
+#endif
 
 /// 카메라 프리뷰 + 스캔 메시 시각화.
 /// 직접 Metal 포인트 렌더러 대신 RealityKit sceneReconstruction 와이어프레임 사용
@@ -13,6 +17,9 @@ struct ARPreviewView: UIViewRepresentable {
     var showMesh: Bool = false
 
     func makeUIView(context: Context) -> ARView {
+        #if DEBUG
+        FPSMonitor.shared.start()
+        #endif
         let arView = ARView(frame: .zero)
         arView.automaticallyConfigureSession = false
         arView.renderOptions.insert([.disableMotionBlur, .disableDepthOfField,
@@ -31,3 +38,44 @@ struct ARPreviewView: UIViewRepresentable {
         }
     }
 }
+
+#if DEBUG
+/// UI fps 계측 — Xcode FPS 게이지 대체. 3초마다 평균·최저 fps를 perf 로그(콘솔)로 남긴다.
+/// R3-1 측정용, Release에는 미포함.
+@MainActor
+final class FPSMonitor {
+    static let shared = FPSMonitor()
+    private var link: CADisplayLink?
+    private var lastTimestamp: CFTimeInterval = 0
+    private var windowStart: CFTimeInterval = 0
+    private var frameCount = 0
+    private var worstGap: CFTimeInterval = 0
+    private let log = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
+
+    func start() {
+        guard link == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        self.link = link
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        if windowStart == 0 {
+            windowStart = link.timestamp
+            lastTimestamp = link.timestamp
+            return
+        }
+        worstGap = max(worstGap, link.timestamp - lastTimestamp)
+        lastTimestamp = link.timestamp
+        frameCount += 1
+        let elapsed = link.timestamp - windowStart
+        guard elapsed >= 3 else { return }
+        let avg = Double(frameCount) / elapsed
+        let minFps = worstGap > 0 ? 1 / worstGap : 0
+        log.info("ui fps avg=\(String(format: "%.1f", avg)) min=\(String(format: "%.1f", minFps))")
+        windowStart = link.timestamp
+        frameCount = 0
+        worstGap = 0
+    }
+}
+#endif
