@@ -73,13 +73,28 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     #if DEBUG
     private var debugFrameCount = 0
-    /// 스로틀 통과 프레임 수 — points/frame 로그 주기용.
+    /// 스로틀 통과 프레임 수 — perf 로그 주기용.
     private var debugProcessedCount = 0
+    /// 처리 프레임별 콜백 소요(ms) — 3분에 약 1,800개, 주기 로그에서 백분위 계산.
+    private var debugCallbackMs: [Double] = []
     /// DESIGN.md 10절: 콜백 처리 시간을 Instruments Points of Interest로 측정.
     private let signposter = OSSignposter(
         logHandle: OSLog(subsystem: "io.tenkm.doran.lidarscan", category: .pointsOfInterest))
-    /// points/frame — Logger라서 Xcode 미부착이어도 `log collect --device`로 사후 수집 가능.
+    /// perf 지표 — Logger라서 Xcode 미부착이어도 `log collect --device`로 사후 수집 가능.
     private let perfLog = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
+
+    /// 현재 프로세스 물리 메모리 사용량(MB). 실패 시 -1.
+    private static func footprintMB() -> Double {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
+    }
     #endif
 
     private func runSession(reset: Bool, withMesh: Bool) {
@@ -149,7 +164,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         lastProcessedTime = frame.timestamp
         #if DEBUG
         let signpostState = signposter.beginInterval("frameCallback")
-        defer { signposter.endInterval("frameCallback", signpostState) }
+        let callbackStart = CFAbsoluteTimeGetCurrent()
+        defer {
+            signposter.endInterval("frameCallback", signpostState)
+            debugCallbackMs.append((CFAbsoluteTimeGetCurrent() - callbackStart) * 1000)
+        }
         #endif
 
         let transform = frame.camera.transform
@@ -173,8 +192,18 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 grid.accumulate(points: points)
                 #if DEBUG
                 debugProcessedCount += 1
-                if debugProcessedCount % 30 == 0 {  // 약 3초마다 — 설계 상한 3,072점 확인용
-                    perfLog.info("points/frame: \(points.count)")
+                if debugProcessedCount % 30 == 0 {  // 약 3초마다 — Instruments 없이 log collect로 판독
+                    let sorted = debugCallbackMs.sorted()
+                    let p50 = sorted[sorted.count / 2]
+                    let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
+                    let maxMs = sorted.last ?? 0
+                    perfLog.info("""
+                        n=\(self.debugProcessedCount) points/frame=\(points.count) \
+                        cb p50=\(String(format: "%.2f", p50))ms \
+                        p95=\(String(format: "%.2f", p95))ms \
+                        max=\(String(format: "%.2f", maxMs))ms \
+                        mem=\(String(format: "%.1f", Self.footprintMB()))MB
+                        """)
                 }
                 #endif
             }
