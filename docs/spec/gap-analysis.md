@@ -31,7 +31,7 @@ last_verified: 2026-09-04
 
 ### 미커밋 pbxproj
 
-`project.pbxproj`의 `DEVELOPMENT_TEAM` 변경(서명 팀 ID)과 Xcode 섹션 재정렬이 stash에 있다 (`git stash list`). 서명 팀은 평가자가 클론 후 어차피 바꿔야 하므로 커밋 여부를 정한다. `AGENTS.md` 로컬 함정: pbxproj diff는 의도한 변경인지 확인.
+~~해소 (2026-09-04)~~ — 확인 결과 stash는 비어 있고 `DEVELOPMENT_TEAM`은 이미 커밋돼 있다. 평가자는 클론 후 본인 팀으로 바꾸면 되고 README 실행 방법이 이를 안내한다. 추가 조치 없음 (사용자 결정).
 
 ## 3. 가산점 후보 (비용 대비 순)
 
@@ -59,7 +59,7 @@ last_verified: 2026-09-04
 4. [x] 문서-코드 모순 수정, M3 iOS 버전 기입 (2026-09-04)
 5. [x] M4·M5 — LLM_REPORT 완성 (2026-09-04)
 6. [ ] M2 — 데모 영상 3분 (촬영분 편집으로 충당 가능)
-7. [ ] pbxproj stash(DEVELOPMENT_TEAM) 커밋 여부 결정
+7. [x] pbxproj stash 결정 — stash 없음 확인, 커밋된 팀 ID 유지 (2026-09-04)
 8. [ ] 시간이 남으면 가산점 2(거리 측정) → 3(팬·줌) → 4(내보내기) 순
 
 ## 6. 감점 요인 점검 (현재 해당 없음)
