@@ -1,6 +1,9 @@
 import ARKit
 import Foundation
 import simd
+#if DEBUG
+import os
+#endif
 
 nonisolated enum ScanEvent: Sendable {
     case trackingChanged(message: String?)   // nil = 정상
@@ -70,6 +73,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     #if DEBUG
     private var debugFrameCount = 0
+    /// 스로틀 통과 프레임 수 — points/frame 로그 주기용.
+    private var debugProcessedCount = 0
+    /// DESIGN.md 10절: 콜백 처리 시간을 Instruments Points of Interest로 측정.
+    private let signposter = OSSignposter(
+        logHandle: OSLog(subsystem: "io.tenkm.doran.lidarscan", category: .pointsOfInterest))
     #endif
 
     private func runSession(reset: Bool, withMesh: Bool) {
@@ -137,6 +145,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 스로틀: 처리 주기 미달이면 즉시 반환 (ARFrame 잡지 않음)
         guard frame.timestamp - lastProcessedTime >= Self.processInterval else { return }
         lastProcessedTime = frame.timestamp
+        #if DEBUG
+        let signpostState = signposter.beginInterval("frameCallback")
+        defer { signposter.endInterval("frameCallback", signpostState) }
+        #endif
 
         let transform = frame.camera.transform
         let position = SIMD2(transform.columns.3.x, transform.columns.3.z)
@@ -157,6 +169,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
                 grid.accumulate(points: points)
+                #if DEBUG
+                debugProcessedCount += 1
+                if debugProcessedCount % 30 == 0 {  // 약 3초마다 — 설계 상한 3,072점 확인용
+                    print("[perf] points/frame: \(points.count)")
+                }
+                #endif
             }
         }
         // 궤적은 일시정지 중에도 기록 — 어디로 걸어갔는지는 누적 여부와 무관하게 보여야 한다.
