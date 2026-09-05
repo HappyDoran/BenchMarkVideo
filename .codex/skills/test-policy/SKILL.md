@@ -35,6 +35,7 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 | 높이 밴드 분기 (벽/바닥/천장), bounds, reset | **필수** | `OccupancyGridTests.swift` |
 | crop 크기와 정규화 좌표 | 필수 | `MinimapRendererTests.swift` |
 | 상태 머신 전이 (`ScanState`, 이벤트 → 배지 상태) | **필수** (분기 4개로 전환 조건 충족) | `ScanViewModelTests.swift` |
+| 녹화 진단 창 집계·연속 시간 reset | **필수** — 계측 수치 자체의 오판 방지 | `ScanDiagnosticsTests.swift` |
 | 세션 lifecycle, 트래킹 경고, 권한 | 실기기 수동 | — |
 | 레이아웃·버튼 배선, 상수, 단순 위임 | 제외 | — |
 

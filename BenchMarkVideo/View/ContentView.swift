@@ -30,13 +30,29 @@ struct ContentView: View {
     @State private var isARMounted = false
 
     var body: some View {
-        if !viewModel.isDeviceSupported {
-            unsupportedView
-        } else if let fatal = viewModel.fatalMessage {
-            fatalErrorView(fatal)
-        } else {
-            scanScreen
+        Group {
+            if !viewModel.isDeviceSupported {
+                unsupportedView
+            } else if let fatal = viewModel.fatalMessage {
+                fatalErrorView(fatal)
+            } else {
+                scanScreen
+            }
         }
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            ScanDebugView(viewModel: viewModel)
+                .padding(.horizontal, 12)
+                .padding(.top, 76)
+        }
+        #endif
+    }
+
+    private var overlayMesh: ColoredMesh? {
+        #if DEBUG
+        if viewModel.diagnosticGridOnly { return nil }
+        #endif
+        return viewModel.liveMesh
     }
 
     // MARK: - 메인 스캔 화면
@@ -68,7 +84,7 @@ struct ContentView: View {
                         // 반경 2m — 게임 미니맵식 근접 뷰 (사용자 결정 3 → 2).
                         // 배경은 실시간 mesh top-down, 마커·궤적은 캔버스. 넓은 맥락은 전체화면 담당.
                         MinimapView(snapshot: viewModel.snapshot, visibleRadius: 2,
-                                    meshBackground: viewModel.liveMesh)
+                                    meshBackground: overlayMesh)
                             .frame(width: 160)
                             .onTapGesture { openExpandedMinimap() }
                     }
@@ -316,12 +332,18 @@ struct ContentView: View {
 
     /// 열 때 스캔 중이면 자동 일시정지 — 결과를 보는 동안 데이터·mesh가 흐르지 않게 (뒤틀림·라벨 유동 방지).
     private func openExpandedMinimap() {
+        #if DEBUG
+        viewModel.markDiagnosticEvent("전체화면 열기")
+        #endif
         resumeAfterExpand = (viewModel.state == .scanning)
         if resumeAfterExpand { viewModel.pause() }
         isMinimapExpanded = true
     }
 
     private func closeExpandedMinimap() {
+        #if DEBUG
+        viewModel.markDiagnosticEvent("전체화면 닫기")
+        #endif
         isMinimapExpanded = false
         measurePoints = []
         viewCenter = nil; viewRadius = 5

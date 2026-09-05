@@ -26,6 +26,26 @@ final class ScanViewModel {
     /// 미니맵 배경·3D 뷰어 공용 실시간 mesh — 1.5초 주기, 입력 변경 시에만 재빌드·발행.
     private(set) var liveMesh: ColoredMesh?
     private var meshRefreshTimer: Timer?
+    #if DEBUG
+    private(set) var diagnostics = ScanDiagnostics()
+    private(set) var diagnosticSnapshotTime: TimeInterval = 0
+    private(set) var diagnosticMeshTime: TimeInterval = 0
+    private(set) var diagnosticEvents: [String] = []
+    private(set) var diagnosticMarker = 0
+    let diagnosticStarted = ProcessInfo.processInfo.systemUptime
+    var diagnosticGridOnly = false
+
+    func markDiagnosticEvent(_ text: String) {
+        let elapsed = ProcessInfo.processInfo.systemUptime - diagnosticStarted
+        diagnosticEvents.append(String(format: "%06.1fs %@", elapsed, text))
+        if diagnosticEvents.count > 6 { diagnosticEvents.removeFirst(diagnosticEvents.count - 6) }
+    }
+
+    func markDiagnosticSection() {
+        diagnosticMarker += 1
+        markDiagnosticEvent("구간 #\(diagnosticMarker)")
+    }
+    #endif
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
     private(set) var fatalMessage: String?
     private(set) var isPermissionDenied = false
@@ -38,10 +58,22 @@ final class ScanViewModel {
     nonisolated deinit {}
 
     init() {
+        #if DEBUG
+        sessionManager.onDiagnostics = { [weak self] value in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.diagnostics = value }
+            }
+        }
+        #endif
         // Task는 실행 순서를 보장하지 않아 이벤트/스냅샷이 뒤집힐 수 있다 — main 큐(FIFO)로 hop.
         sessionManager.onSnapshot = { [weak self] snapshot in
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.snapshot = snapshot }
+                MainActor.assumeIsolated {
+                    self?.snapshot = snapshot
+                    #if DEBUG
+                    self?.diagnosticSnapshotTime = ProcessInfo.processInfo.systemUptime
+                    #endif
+                }
             }
         }
         sessionManager.onEvent = { [weak self] event in
@@ -53,6 +85,14 @@ final class ScanViewModel {
 
     /// internal: handle 분기가 넷을 넘어 test-policy 전환 조건 충족 — `ScanViewModelTests`가 직접 호출.
     func handle(_ event: ScanEvent) {
+        #if DEBUG
+        switch event {
+        case .trackingChanged(let message): markDiagnosticEvent(message ?? "트래킹 정상")
+        case .sessionFailed(let message, _): markDiagnosticEvent(message)
+        case .interruptionChanged(let interrupted): markDiagnosticEvent(interrupted ? "세션 중단" : "세션 복귀")
+        case .meshReady: markDiagnosticEvent("mesh 준비")
+        }
+        #endif
         switch event {
         case .trackingChanged(let message):
             trackingMessage = message
@@ -84,6 +124,9 @@ final class ScanViewModel {
     // MARK: - 스캔 제어
 
     func start() {
+        #if DEBUG
+        markDiagnosticEvent("시작/재개 요청")
+        #endif
         sessionManager.startAccumulating()
         state = .scanning
         // 0.6초 뒤 1회 빌드 — 타이머 틱(최대 1.5초)보다 빠르되, 시작 순간의 와이어프레임
@@ -98,17 +141,29 @@ final class ScanViewModel {
         sessionManager.exportColoredMesh { [weak self] mesh in
             guard let mesh else { return }
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.liveMesh = mesh }
+                MainActor.assumeIsolated {
+                    self?.liveMesh = mesh
+                    #if DEBUG
+                    self?.diagnosticMeshTime = ProcessInfo.processInfo.systemUptime
+                    #endif
+                }
             }
         }
     }
 
     func pause() {
+        #if DEBUG
+        markDiagnosticEvent("일시정지 요청")
+        #endif
         sessionManager.pauseAccumulating()
         state = .paused
     }
 
     func reset() {
+        #if DEBUG
+        markDiagnosticEvent("초기화 요청")
+        diagnosticMeshTime = 0
+        #endif
         sessionManager.reset()
         liveMesh = nil       // 옛 방 mesh 잔상 즉시 제거 — 다음 빌드까지 격자 fallback
         pointCloud = nil

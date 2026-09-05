@@ -2,6 +2,7 @@ import ARKit
 import RealityKit
 import SwiftUI
 #if DEBUG
+import Observation
 import os
 import QuartzCore
 #endif
@@ -45,9 +46,13 @@ struct ARPreviewView: UIViewRepresentable {
 #if DEBUG
 /// UI fps 계측 — Xcode FPS 게이지 대체. 3초마다 평균·최저 fps를 perf 로그(콘솔)로 남긴다.
 /// R3-1 측정용, Release에는 미포함.
+@Observable
 @MainActor
 final class FPSMonitor {
     static let shared = FPSMonitor()
+    private(set) var average: Double = 0
+    private(set) var maximumGapMs: Double = 0
+    private(set) var measuredAt: TimeInterval = 0
     private var link: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
     private var windowStart: CFTimeInterval = 0
@@ -75,6 +80,9 @@ final class FPSMonitor {
         guard elapsed >= 3 else { return }
         let avg = Double(frameCount) / elapsed
         let minFps = worstGap > 0 ? 1 / worstGap : 0
+        average = avg
+        maximumGapMs = worstGap * 1000
+        measuredAt = ProcessInfo.processInfo.systemUptime
         log.info("ui fps avg=\(String(format: "%.1f", avg)) min=\(String(format: "%.1f", minFps))")
         windowStart = link.timestamp
         frameCount = 0

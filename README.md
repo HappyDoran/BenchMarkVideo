@@ -78,7 +78,7 @@ open BenchMarkVideo.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 | ✅ `BenchMarkVideoTests/` 28건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA |
+| 테스트 코드 | ✅ `BenchMarkVideoTests/` 32건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA·진단 창 집계 |
 | auto-fit, 이동 궤적 | ✅ 위 R2 표 |
 | 성능 최적화 전후 비교 | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
 | 거리·면적 측정 | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
@@ -136,10 +136,27 @@ iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04,
 
 ## 검증
 
+### 녹화 진단 패널 (Development 전용)
+
+`BenchMarkVideo-Development` 빌드는 화면 좌상단에 `진단 D1` 패널을 표시한다. 제출용
+`BenchMarkVideo-Production`에는 패널과 계측 코드가 포함되지 않는다.
+
+- **갱신**: 제어 상태와 실제 누적 gate, 격자·mesh UI 수신 시각, mesh 원본 프레임 시각,
+  누적 점·셀, 연속 누적 허용 시간을 표시한다. `격자만 보기`로 같은 장면의 occupancy grid와
+  mesh 표시 차이를 녹화할 수 있다.
+- **부하**: `CADisplayLink`, 처리 콜백 약 0.5초 창, mesh CPU 빌드, 메모리·피크,
+  앵커·정점·복셀 수와 발열 상태를 표시한다.
+- **좌표·기록**: 월드 위치·heading·시작 높이와 최근 상태 전환을 표시한다.
+  시나리오가 바뀔 때 `구간 #` 버튼을 눌러 영상에서 경계를 남긴다.
+
+패널의 `UI 수신`은 SwiftUI에 값이 도착한 시점이며 GPU 표시 완료 시각이 아니다. 실제 벽이
+미니맵에 나타나는 지연, 격자와 mesh의 공간 정합, 화면 끊김은 패널과 녹화 화면을 함께 판독한다.
+진단 패널 자체의 부하는 실기기에서 별도로 비교한다.
+
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ```bash
-# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 28건
+# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 32건
 xcodebuild test -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 

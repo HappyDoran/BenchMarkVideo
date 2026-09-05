@@ -35,7 +35,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 1. **계층 경계가 곧 격리 경계다.** 이 앱의 핵심 제약은 동시성이다 — ARKit delegate는 `scan.processing` 직렬 큐에서 돌고, SwiftUI는 MainActor에서 돈다. MVVM의 세 계층이 이 두 실행 문맥에 그대로 대응한다: Model은 `nonisolated`로 큐 전용, ViewModel은 MainActor 상태 허브, View는 ViewModel만 읽는다. 폴더 이름만 보고도 "이 파일은 어느 스레드에서 도는가"를 알 수 있다. 격리 규칙을 폴더 규칙으로 바꾸면 기계 검사(`scripts/check-structure.sh`)가 가능해진다.
 2. **SwiftUI + `@Observable`의 기본 형태다.** View는 상태의 함수이고, 상태를 소유·발행하는 객체가 하나 필요하다. `ScanViewModel`이 그 하나다. 별도 프레임워크나 boilerplate 없이 Observation만으로 성립한다.
-3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 16건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
+3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 전체 32건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
 4. **LLM 협업에 유리하다.** 배치 규칙이 "파일이 어느 폴더에 있고 무엇을 import하면 안 되는가"라는 기계적 규칙이라 에이전트에게 강제할 수 있고, 위반이 커밋 전에 스크립트로 잡힌다. 기능 단위 폴더링(`Scan/`, `Minimap/`, `UI/`)은 어디까지가 UI이고 어디까지가 파이프라인인지 사람의 판단이 필요했다.
 5. **프로젝트 규모에 맞는 무게다.** 단일 화면, 파일 9개다. 세 계층으로 충분하다.
 
@@ -50,7 +50,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 28건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스).
+**검증 상태.** 컴파일·구조 검사·단위 테스트 32건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스). 녹화 진단 패널의 실기기 가독성·부하는 미검증.
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -208,6 +208,18 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 **이유.** LLM 초안(매니저가 세션 생성·주입)은 API 제약으로 성립하지 않았다 (`LLM_REPORT.md` 사례 1). View → ViewModel → Model 경로를 유지하기 위해 ViewModel이 attach를 중계한다.
 
 ## 10. 성능 예산과 측정 (R3)
+
+Development 빌드에는 녹화 판독용 진단 패널을 둔다. 처리 큐는 약 0.5초 고정 창의 수신·처리
+프레임, 콜백 평균·최대, 현재/최장 연속 누적 허용 시간만 보관해 진단 자체의 메모리 상한을
+고정한다. ViewModel은 격자와 mesh가 UI에 도착한 시각을 따로 기록한다. mesh에는 빌드에 사용한
+ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상에서 구분한다.
+
+1. 제어 상태는 스캔인데 tracking/depth gate가 실제 누적을 보류하는 경우
+2. 격자 스냅샷은 최신인데 1.5초 주기 mesh가 뒤처진 경우
+3. 초기화 전 세대의 mesh가 늦게 도착하는 경우
+
+이 시각은 CPU 처리와 UI 수신 기준이다. GPU가 화면 표시를 끝낸 시각은 아니므로 벽 출현 지연과
+정합은 녹화 픽셀을 함께 판독한다. `격자만 보기` 비교는 진단용이며 Production 동작을 바꾸지 않는다.
 
 **목표.** UI 30fps 이상(R3-1), 내부 목표는 기기 기본 60fps 유지. delegate 콜백 동기 처리 <10ms. 3분 이상 연속 스캔에서 메모리 증가 없음 (격자 고정, 궤적만 선형).
 

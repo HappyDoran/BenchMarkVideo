@@ -38,7 +38,8 @@ last_verified: 2026-09-05
 │   ├── ScanViewModelTests.swift          # 이벤트 → 배지 상태, retry·reset 전이
 │   ├── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색·점군 파생
 │   ├── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
-│   └── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
+│   ├── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
+│   └── ScanDiagnosticsTests.swift         # 진단 창 집계·연속 누적 시간 reset
 └── BenchMarkVideo/
     ├── App/
     │   └── BenchMarkVideoApp.swift    # @main. ContentView 진입
@@ -48,7 +49,8 @@ last_verified: 2026-09-05
     │   ├── OccupancyGrid.swift           # 5cm × 400×400 hit 격자, 높이 밴드 필터
     │   ├── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
     │   ├── GridExporter.swift            # 격자 → 점군(GridPointCloud)·.ply 텍스트 (뷰어·내보내기 공용)
-    │   └── MeshBuilder.swift             # 복셀 색 저장소 + ARKit mesh → 정점 색 mesh (3D 뷰어)
+    │   ├── MeshBuilder.swift             # 복셀 색 저장소 + ARKit mesh → 정점 색 mesh (3D 뷰어)
+    │   └── ScanDiagnostics.swift         # DEBUG 녹화 진단 값·0.5초 고정 집계 창
     ├── ViewModel/                        # MainActor
     │   └── ScanViewModel.swift           # @Observable 상태 허브, ScanState, 세션 attach 중계
     ├── View/                             # SwiftUI, ViewModel과 불변 스냅샷만 참조
@@ -56,7 +58,8 @@ last_verified: 2026-09-05
     │   ├── ARPreviewView.swift           # UIViewRepresentable — ARView 생성, 세션 콜백
     │   ├── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas, 전체화면 팬·줌 변환
     │   ├── PointCloudViewerView.swift    # SceneKit 정점 색 mesh/점군 3D 뷰어 (회전·줌·팬·바닥 탭 측정)
-    │   └── MeshTopDownView.swift         # mesh 직교 하향 렌더 — 미니맵 배경 레이어
+    │   ├── MeshTopDownView.swift         # mesh 직교 하향 렌더 — 미니맵 배경 레이어
+    │   └── ScanDebugView.swift           # DEBUG 녹화 진단 패널·격자 비교·구간 마커
     └── Assets.xcassets/
 ```
 

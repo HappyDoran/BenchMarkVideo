@@ -8,6 +8,11 @@ nonisolated struct ColoredMesh: Sendable {
     var indices: [Int32] = []
     /// 빌드 순번 — 정점 수가 같아도 색·기하가 갱신됐는지 뷰가 판별하는 기준 (ARSessionManager가 부여).
     var version: Int = 0
+    #if DEBUG
+    var diagnosticGeneration = 0
+    var diagnosticSourceTimestamp: Double = 0
+    var diagnosticBuildMs: Double = 0
+    #endif
 
     /// 측정 평면용 바닥 높이 (밀도 기반 — MeshBuilder.estimatedFloorY).
     var estimatedFloorY: Float { MeshBuilder.estimatedFloorY(of: positions) }
@@ -24,6 +29,10 @@ nonisolated final class VoxelColorStore {
     static let fineSize: Float = 0.05
     static let midSize: Float = 0.15
     static let coarseSize: Float = 0.4
+
+    #if DEBUG
+    var diagnosticEntryCount: Int { fine.count + mid.count + coarse.count }
+    #endif
 
     private var fine: [SIMD3<Int32>: SIMD3<UInt8>] = [:]
     private var mid: [SIMD3<Int32>: SIMD3<UInt8>] = [:]

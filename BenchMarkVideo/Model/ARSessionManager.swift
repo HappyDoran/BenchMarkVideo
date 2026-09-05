@@ -1,4 +1,4 @@
-import ARKit
+@preconcurrency import ARKit
 import Foundation
 import simd
 #if DEBUG
@@ -104,6 +104,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     #if DEBUG
+    var onDiagnostics: (@Sendable (ScanDiagnostics) -> Void)?
+    private var diagnosticWindow = ScanDiagnosticWindow()
+    private var diagnosticGeneration = 0
+    private var diagnosticPeakMB = -1.0
     private var debugFrameCount = 0
     /// 스로틀 통과 프레임 수 — perf 로그 주기용.
     private var debugProcessedCount = 0
@@ -193,12 +197,22 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         let session = self.session
         processingQueue.async {
             guard self.hasStarted else { completion(nil); return }
-            let anchors = session?.currentFrame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
+            let frame = session?.currentFrame
+            let anchors = frame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
             let signature = anchors.count &* 1_000_003 &+ self.grid.totalPoints
             guard signature != self.lastMeshInputSignature else { completion(nil); return }
             self.lastMeshInputSignature = signature
             self.meshBuildCount += 1
+            #if DEBUG
+            let buildStart = ProcessInfo.processInfo.systemUptime
+            let sourceTimestamp = frame?.timestamp ?? 0
+            #endif
             var mesh = MeshBuilder.coloredMesh(anchors: anchors, colors: self.voxelColors)
+            #if DEBUG
+            mesh.diagnosticGeneration = self.diagnosticGeneration
+            mesh.diagnosticSourceTimestamp = sourceTimestamp
+            mesh.diagnosticBuildMs = (ProcessInfo.processInfo.systemUptime - buildStart) * 1000
+            #endif
             mesh.version = self.meshBuildCount
             completion(mesh)
         }
@@ -208,6 +222,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     func reset() {
         processingQueue.async {
             self.isAccumulating = false
+            #if DEBUG
+            self.diagnosticGeneration += 1
+            self.diagnosticWindow = ScanDiagnosticWindow()
+            #endif
             self.hasStarted = false
             self.scanOriginY = nil
             self.grid.reset()
@@ -235,6 +253,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         #if DEBUG
+        diagnosticWindow.receive()
         debugFrameCount += 1
         if debugFrameCount == 1 || debugFrameCount % 300 == 0 {
             print("[scan] frame #\(debugFrameCount), depth: \(frame.smoothedSceneDepth != nil), tracking: \(frame.camera.trackingState)")
@@ -251,10 +270,44 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         lastProcessedTime = frame.timestamp
         #if DEBUG
         let signpostState = signposter.beginInterval("frameCallback")
-        let callbackStart = CFAbsoluteTimeGetCurrent()
+        let callbackStart = ProcessInfo.processInfo.systemUptime
+        var diagnosticSampled = 0
+        let diagnosticBeforePoints = grid.totalPoints
+        var diagnosticGate = "대기"
+        var diagnosticAllowed = false
         defer {
             signposter.endInterval("frameCallback", signpostState)
-            debugCallbackMs.append((CFAbsoluteTimeGetCurrent() - callbackStart) * 1000)
+            let now = ProcessInfo.processInfo.systemUptime
+            let elapsedMs = (now - callbackStart) * 1000
+            debugCallbackMs.append(elapsedMs)
+            // 기존 로그도 일시정지 중 무한 증가하지 않도록 제한한다.
+            if debugCallbackMs.count > 60 { debugCallbackMs.removeFirst(debugCallbackMs.count - 60) }
+            diagnosticWindow.record(now: now, callbackMs: elapsedMs, allowed: diagnosticAllowed)
+            if let window = diagnosticWindow.publish(now: now) {
+                let memory = Self.footprintMB()
+                diagnosticPeakMB = max(diagnosticPeakMB, memory)
+                var value = ScanDiagnostics()
+                value.timestamp = now
+                value.frameTimestamp = frame.timestamp
+                value.generation = diagnosticGeneration
+                value.receivedFrames = window.received
+                value.processedFrames = window.processed
+                value.sampledPoints = diagnosticSampled
+                value.acceptedPoints = grid.totalPoints - diagnosticBeforePoints
+                value.callbackMeanMs = window.mean
+                value.callbackMaxMs = window.max
+                value.continuousSeconds = diagnosticWindow.continuousSeconds
+                value.longestSeconds = diagnosticWindow.longestSeconds
+                value.gate = diagnosticGate
+                value.position = SIMD3(frame.camera.transform.columns.3.x,
+                                       frame.camera.transform.columns.3.y, frame.camera.transform.columns.3.z)
+                value.originY = scanOriginY
+                value.anchors = frame.anchors.reduce(0) { $0 + ($1 is ARMeshAnchor ? 1 : 0) }
+                value.voxelEntries = voxelColors.diagnosticEntryCount
+                value.memoryMB = memory
+                value.peakMemoryMB = diagnosticPeakMB
+                onDiagnostics?(value)
+            }
         }
         #endif
 
@@ -285,11 +338,22 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             settleUntil = frame.timestamp + Self.relocalizationSettleTime
         }
         let isSettling = frame.timestamp < settleUntil
+        #if DEBUG
+        diagnosticGate = isAccumulating ? "트래킹 보류" : (hasStarted ? "일시정지" : "시작 전")
+        if isAccumulating, isSettling { diagnosticGate = "재인식 안정화" }
+        #endif
 
         // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다.
         // 재로컬라이즈 안정화 구간(isSettling)에도 보류 — 수렴 중 포즈가 정합을 오염시킨다.
         if isAccumulating, !isSettling, case .normal = frame.camera.trackingState {
+            #if DEBUG
+            diagnosticGate = "깊이 없음"
+            #endif
             if let depth = frame.smoothedSceneDepth ?? frame.sceneDepth {
+                #if DEBUG
+                diagnosticAllowed = true
+                diagnosticGate = "누적 허용"
+                #endif
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depth.depthMap,
                     confidenceMap: depth.confidenceMap,
@@ -297,6 +361,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     intrinsics: frame.camera.intrinsics,
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
+                #if DEBUG
+                diagnosticSampled = points.count
+                #endif
                 grid.accumulate(points: points, originY: scanOriginY ?? 0)
                 voxelColors.accumulate(points: points)   // 3D 뷰어 정점 색
                 #if DEBUG

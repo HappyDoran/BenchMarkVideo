@@ -4,7 +4,7 @@
 
 ## 1. 사용한 도구와 워크플로우
 
-- **도구**: Claude Code (CLI)
+- **도구**: Claude Code (CLI), Codex
 - **워크플로우**: 요구사항 정의 전체를 컨텍스트로 제공 → 브리핑/아키텍처 합의 → 프로젝트 `CLAUDE.md`에 좌표계·동시성 규약을 먼저 고정 → 모듈 단위로 구현 위임 → 매 단계 `xcodebuild` 컴파일 검증 → 실기기 테스트 결과를 피드백으로 재투입.
 - **에이전트 컨텍스트 세팅** (`CLAUDE.md`): LLM이 자신 있게 틀리는 영역(좌표 변환, column-major, intrinsics 방향)을 규약으로 박아 두고, 동시성 규칙(scan.processing 큐 전용 접근)과 커밋 표기 규칙(`[llm]`/`[human]`/`[llm+human]`)을 명시. 의도: 세션이 바뀌어도 같은 규약으로 작업 이어가기 + 리포트 작성 근거를 커밋 로그에 남기기.
 - **문서 체계 확장** (세션 2): `CLAUDE.md` 한 파일을 `AGENTS.md` 라우터(CLAUDE.md는 symlink) + 소유 문서(`TECH_RULES.md`, `DESIGN.md`, `README.md`) + skill + `scripts/check-structure.sh`로 분리. Claude·Codex가 같은 본문을 읽는다. 구조는 `docs/AI_AGENT_HARNESS.md`.
@@ -19,13 +19,14 @@
 | `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
 | `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
 | `ViewModel/ScanViewModel.swift` | LLM 생성 | 세션 attach 중계는 MVVM 재배치 때 추가 (사례 4) |
-| `BenchMarkVideoTests/*` (16건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
+| `BenchMarkVideoTests/*` (32건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
 | `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 요구사항 대응 절 | LLM 생성 | 세션 2에서 요구사항 정의 전문을 그대로 제공 → 요구사항 번호·문서 구성 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 참고 영상은 프레임을 추출해 LLM이 직접 비교 |
 | 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
 | 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | 사람 설계 + LLM 본문 | 사람이 이 프로젝트용으로 구축한 Agent 작업 지원 체계 — 도구 중립 라우터(`AGENTS.md`, `CLAUDE.md`는 symlink), 사실 하나당 소유 문서 하나 원칙, 작업 유형별 skill, grep 기반 구조·문서 계약 검사. 구조와 소유권 규칙은 사람이 지정, 본문 작성은 LLM |
 | mesh 표시 문법("mesh 보임 = 기록 중")과 "주변 인식 중…" 배지 (`ScanEvent.meshReady`, `ContentView` 배지) | 사람 방법론 + LLM 구현 | 사람이 "스캔-메시 로딩 간극에 로딩 표시" 방법론 제시, LLM이 고정 타이머 대신 첫 `ARMeshAnchor` 신호 기반으로 다듬음 (사례 12) |
 | 실기기 검증 (46항목, 화면 녹화 22편) | 사람 촬영·관찰 + LLM 판독 | 사람: 시나리오 수행·촬영·이상 관찰 제보("미니맵이 갈피를 못 잡아"). LLM: 촬영 시나리오 설계, ffmpeg 프레임 추출 판독, 판정·문서 기입 (사례 13·14) |
 | 성능 자가 계측 (`FPSMonitor`, perf 로그)과 `perf-baseline` 비교 브랜치 | LLM 생성 | Instruments 실패 후 대체 설계 (사례 15). 측정 실행·콘솔 로그 제공은 사람 |
+| 녹화 진단 (`ScanDiagnostics`, `ScanDebugView`, 격자 비교·구간 기록) | 사용자 요청 + Codex 구현 | 녹화 화면에서 갱신 지연·누적 gate·부하·좌표·초기화 세대를 판독하도록 Debug 전용으로 구현. 촬영과 실기기 부하 판정은 사람 담당 |
 | 2D/3D 통합 뷰어·mesh 미니맵 (`MeshBuilder`, `PointCloudViewerView`, `MeshTopDownView`) | 사람 레퍼런스·관찰 + LLM 설계·구현 | 사람이 목표 화면(스크린샷·영상)과 실기기 이상 관찰을 제보, LLM이 원인 특정·구현 (사례 17·18). 텍스처 베이킹 대신 정점 색 근사 채택은 비용 합의 |
 | 표시 문법 최종형 — 체크무늬=스캔 커버리지·전체화면 자동 일시정지·3D 표면 측정 | 사람 UX 정의 + LLM 대안 검토·구현 | "체크무늬 = 스캔되고 있는 곳" 멘탈 모델과 뒤틀림 해법(자동 일시정지)은 사람 제시, LLM이 대안 비교(재구성 게이트는 ARKit 앵커 삭제로 기각)·구현 (사례 19·20) |
 
@@ -163,3 +164,11 @@
 - **결과**: LLM이 Instruments(xctrace) 원격 측정을 3회 시도해 전부 실패했다 — Allocations 계측이 앱을 오염시켰고(사용자 제보로 발각), CLI 설치 빌드는 launch/attach가 거부됐다. 결국 자가 계측 로그로 접근을 바꾸고서야 측정이 끝났다 (사례 15).
 - **왜 실패했나**: "체크해줄 수 있어?"에 LLM이 가장 강력해 보이는 도구부터 잡았다. 측정 부하가 측정 대상을 바꾼다는 점, 서명·신뢰 같은 기기 제약을 도구 선택 전에 검증하지 않았다. 두 번째 실패 시점에 접근을 바꿨어야 했는데 세 번째까지 같은 축에서 우회를 시도했다.
 - **교훈**: 도구가 막히면 우회가 아니라 요구사항으로 돌아간다 — 필요한 건 "수치 4개"였고, 그건 앱이 스스로 로그로 뱉는 게 가장 짧은 경로였다.
+
+
+### 녹화 진단 계측 보완 — 2026-09-05
+
+- 사용자: 녹화로 직접 판독할 수 있는 진단 UI와 별도 브랜치 작업을 요청.
+- Codex: Debug 전용 패널·처리 큐 계측·구간 기록·격자 비교 모드를 작성. GPU 완료와 UI 수신, 누적 허용 시간과 화면상 스캔 상태를 구분했다.
+- 기존 LLM 계측의 수정: 콜백 시간 배열은 누적 처리 30회마다 비워져 일시정지 중에는 계속 증가할 수 있었다. 코드 확인으로 발견해 최근 60개 상한을 추가했다. 새 패널은 배열 없이 약 0.5초 창의 합계·최댓값만 보관한다.
+- 실기기 화면 가독성·계측 부하·영상 판독은 아직 미검증이다.
