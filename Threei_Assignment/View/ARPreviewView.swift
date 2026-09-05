@@ -16,13 +16,6 @@ struct ARPreviewView: UIViewRepresentable {
     /// 여기서는 그리기만 켜고 끈다 — 스캔 전에는 보이지 않아야 한다.
     var showMesh: Bool = false
 
-    /// 표시 셰이더 예열 시간(s) — 재구성 예열과 별개로, 와이어프레임 그리기 셰이더는
-    /// debugOptions를 처음 켤 때 컴파일된다. 카메라 워밍업("카메라 준비 중…") 구간에
-    /// 잠깐 켜서 미리 컴파일해 두면 스캔 시작 시 즉시 그려진다.
-    private static let displayWarmUpDuration: TimeInterval = 0.8
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
     func makeUIView(context: Context) -> ARView {
         #if DEBUG
         FPSMonitor.shared.start()
@@ -33,25 +26,19 @@ struct ARPreviewView: UIViewRepresentable {
                                      .disableHDR, .disablePersonOcclusion,
                                      .disableAREnvironmentLighting, .disableGroundingShadows,
                                      .disableCameraGrain])
-        // 표시 셰이더 예열 — 워밍업 오버레이가 화면을 덮는 동안이라 사용자에게 보이지 않는다.
-        arView.debugOptions.insert(.showSceneUnderstanding)
-        context.coordinator.displayWarmUntil = Date().addingTimeInterval(Self.displayWarmUpDuration)
         onSessionReady(arView.session)
         return arView
     }
 
+    // 표시 셰이더 별도 예열은 두지 않는다 — 스캔 전 표시를 잠깐 켜는 방식은 체크무늬가
+    // 사용자에게 노출돼 "mesh 보임 = 기록 중" 문법을 깬다 (실기기 확인). 첫 시작이
+    // 재구성을 리셋하므로 셰이더 컴파일은 앵커 재생성 창("주변 인식 중…" 배지) 안에 흡수된다.
     func updateUIView(_ uiView: ARView, context: Context) {
         if showMesh {
             uiView.debugOptions.insert(.showSceneUnderstanding)
-        } else if Date() >= context.coordinator.displayWarmUntil {
+        } else {
             uiView.debugOptions.remove(.showSceneUnderstanding)
         }
-        // 예열 창 안에서는 켠 채 둔다 — 셰이더 컴파일이 끝나도록 (10Hz 스냅샷 갱신이 곧 재호출)
-    }
-
-    @MainActor
-    final class Coordinator {
-        var displayWarmUntil = Date()
     }
 }
 
