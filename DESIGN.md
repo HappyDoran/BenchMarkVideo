@@ -37,7 +37,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 2. **SwiftUI + `@Observable`의 기본 형태다.** View는 상태의 함수이고, 상태를 소유·발행하는 객체가 하나 필요하다. `ScanViewModel`이 그 하나다. 별도 프레임워크나 boilerplate 없이 Observation만으로 성립한다.
 3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 전체 32건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
 4. **LLM 협업에 유리하다.** 배치 규칙이 "파일이 어느 폴더에 있고 무엇을 import하면 안 되는가"라는 기계적 규칙이라 에이전트에게 강제할 수 있고, 위반이 커밋 전에 스크립트로 잡힌다. 기능 단위 폴더링(`Scan/`, `Minimap/`, `UI/`)은 어디까지가 UI이고 어디까지가 파이프라인인지 사람의 판단이 필요했다.
-5. **프로젝트 규모에 맞는 무게다.** 단일 화면, 파일 9개다. 세 계층으로 충분하다.
+5. **프로젝트 규모에 맞는 무게다.** 단일 스캔 흐름, 앱 소스 15개다. 세 계층으로 충분하다.
 
 **검토한 대안.**
 
@@ -50,7 +50,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 32건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스). 녹화 진단 패널의 실기기 가독성·부하는 미검증.
+**검증 상태.** 컴파일·구조 검사·단위 테스트 32건 통과. 실기기 검증 완료 (2026-09-04~06, `README.md` 매트릭스). 진단 패널 3개 탭의 가독성과 Development 계측 상태는 3차 녹화에서 확인했다. Production과 같은 조건에서 진단 패널 자체가 더하는 부하를 분리한 A/B 수치는 측정하지 않았다.
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -70,7 +70,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
 | ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동, 트래킹 limited 중 이동 |
 | ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
-| ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 `Task { @MainActor }`로 hop | — |
+| ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 main 큐 FIFO로 hop한 뒤 MainActor 상태 갱신 | — |
 | ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
 
 ②~⑧이 콜백 안에서 동기로 끝난다. `ARFrame`은 콜백 밖으로 나가지 않는다 — 프레임 풀 고갈 방지 (`TECH_RULES.md` 3절). 실시간 갱신(R2-1)은 이 구조 자체로 보장된다: 스캔 종료 후 일괄 처리하는 단계가 없다.
@@ -261,7 +261,7 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 
 **해석 (측정 후 추가).**
 
-- 콜백 시간은 시간에 따라 상승한다 — 초반 3초 p50 0.31ms → 말미 누적 11.9ms. 격자 누적이 아니라 `MinimapRenderer` 비트맵 생성이 관측 영역 면적에 비례해 커지는 것이 원인. Debug(-Onone) 수치라 Release는 이보다 낮고, 콜백은 전용 직렬 큐에서 돌아 UI 프레임을 직접 막지 않는다 (10Hz × 12ms ≈ 큐 점유 12%). 목표 <10ms는 Debug 기준 미달이다. 계측 조건은 `SCAN_DIAGNOSTICS`로 분리했지만 현재 Production에는 정의하지 않았으므로 Release 재측정에는 조건을 임시로 적용한 별도 측정 구성이 필요하다.
+- 콜백 시간은 시간에 따라 상승한다 — 초반 3초 p50 0.31ms → 말미 누적 11.9ms. 격자 누적이 아니라 `MinimapRenderer` 비트맵 생성이 관측 영역 면적에 비례해 커지는 것이 원인. 측정값은 Debug(-Onone) 기준이고, 콜백은 전용 직렬 큐에서 돌아 UI 프레임을 직접 막지 않는다 (10Hz × 12ms ≈ 큐 점유 12%). 목표 <10ms는 Debug 기준 미달이다. Production에는 `SCAN_DIAGNOSTICS`가 없어 Release 콜백 수치는 측정하지 않았으며, Release가 더 빠를 것이라는 일반적 예상치를 결과로 쓰지 않는다. Release 수치가 필요하면 조건을 임시 적용한 별도 측정 구성이 필요하다.
 - "메모리 증가 없음" 가정은 앱 격자에만 성립한다. `sceneReconstruction` mesh 앵커는 스캔 면적에 비례해 ARKit이 계속 쌓는다 — 3분 방 스캔에 약 +330MB. 초기화(`resetSceneReconstruction`)가 회수 수단이다.
 - 3분 시점 ARKit이 "resource constraints" 경고와 함께 depth integration을 건너뛰는 구간이 관측됐다 (Debug + 계측 부하 조건). Production 기준 재현 여부는 미확인.
 
@@ -303,6 +303,19 @@ relocalizing을 유도한다.
 관찰: 가림 직후 mesh v50이 빈 positions로 도착해 패널이 `표시 격자`로 바뀌었다 — ARKit이 트래킹 상실 시 mesh
 앵커를 일시 비우는 것으로 보이며, 복귀 후 다음 빌드에서 채워진다. Production 72초 미니맵은 격자 fallback도 없이
 비었는데, 사용자가 2m 반경 밖 미관측 영역으로 이동해 snapshot crop 밖이었던 것으로 추정한다. 코드 결함 근거는 없다.
+
+**3차 보충 판독 (Development 184초).** `ScreenRecording_09-06-2026 00-54-31_1.MP4`는 부하 탭을 스캔 중 유지해
+화면 계측의 공백을 보완했다. 녹화 시계 119.0초에서 DisplayLink 60.0Hz/최대 간격 16.7ms,
+콜백 p50 15.7ms/p95 18.1ms, 메모리 450.4MB/앱 실행 피크 517.7MB를 확인했다. 당시 누적은
+1,073,865점·1,927셀, mesh CPU 빌드는 37.7ms, 발열은 `높음`이었다. 다만 녹화 시계 80.9초에 초기화,
+132.0초에 전체화면 자동 일시정지가 있어 **총 영상 길이 184초를 3분 연속 스캔 증거로 계산하지 않는다.**
+R3-2의 3분 연속 근거는 위 09-04 3분 측정과 09-05 4.5분 재측정이다.
+
+**Production 초기 표시 판독.** 별도 11.78초 콜드 실행 영상(`ScreenRecording_09-06-2026 00-10-23_1.mov`)을
+프레임 단위로 읽었다. 아이콘 실행 애니메이션 시작 후 첫 카메라 프레임과 초기 미니맵 캔버스·위치 마커가
+동시에 0.716초에 나타났다. 스캔 버튼 입력 후 상태 전환은 약 0.067초, 첫 비어 있지 않은 격자 스냅샷은
+약 0.117초(2,698점·69셀)였다. 카메라 mesh는 약 1.95초 뒤 나타났다. 화면 녹화 기준이라 앱 프로세스 생성
+시각이나 내부 콜백 비용을 뜻하지 않는다.
 
 **전후 비교 (선택 "성능 최적화 근거").** 같은 공간에서 `perf-baseline` 브랜치(stride 1 · 스로틀 0, 전수 처리)로 재측정 (2026-09-04, Debug):
 
