@@ -5,21 +5,91 @@ import SwiftUI
 /// 스캔 점군 3D 뷰어 (가산점: 3D 재구성 뷰어).
 /// 새 렌더러를 만들지 않는다 — .ply 내보내기와 같은 점군(`GridPointCloud`)을
 /// SceneKit 점 지오메트리로 올리고, 회전·줌·팬은 `allowsCameraControl`에 맡긴다.
+/// 측정: 바닥 평면(y=0) 탭 → 월드 xz — 2D 미니맵과 같은 `measurePoints`를 공유해
+/// 어느 모드에서 찍든 두 뷰에 함께 보이고 거리 계산도 동일하다.
 struct PointCloudViewerView: UIViewRepresentable {
     let cloud: GridPointCloud
+    @Binding var measurePoints: [SIMD2<Float>]
+
+    /// 바닥 히트테스트 전용 카테고리 (점군과 분리).
+    private static let floorCategory = 2
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
         view.scene = Self.makeScene(cloud)
         view.allowsCameraControl = true          // 궤도 회전·핀치 줌·두 손가락 팬
         view.backgroundColor = .black
+        view.addGestureRecognizer(UITapGestureRecognizer(
+            target: context.coordinator, action: #selector(Coordinator.handleTap(_:))))
         return view
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {}
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.syncMarkers(in: uiView, points: measurePoints)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var parent: PointCloudViewerView
+        init(_ parent: PointCloudViewerView) { self.parent = parent }
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? SCNView else { return }
+            let hits = view.hitTest(gesture.location(in: view),
+                                    options: [.categoryBitMask: PointCloudViewerView.floorCategory,
+                                              .ignoreHiddenNodes: false])
+            guard let hit = hits.first else { return }
+            let world = SIMD2(hit.worldCoordinates.x, hit.worldCoordinates.z)
+            let current = parent.measurePoints
+            parent.measurePoints = current.count >= 2 ? [world] : current + [world]
+        }
+
+        /// 측정 마커·선 노드를 measurePoints와 동기화. 이름으로 지우고 다시 그린다 (점 최대 2개라 비용 무시).
+        func syncMarkers(in view: SCNView, points: [SIMD2<Float>]) {
+            guard let root = view.scene?.rootNode else { return }
+            root.childNodes.filter { $0.name == "measure" }.forEach { $0.removeFromParentNode() }
+            for p in points {
+                let sphere = SCNSphere(radius: 0.06)
+                sphere.firstMaterial?.diffuse.contents = UIColor.orange
+                sphere.firstMaterial?.lightingModel = .constant
+                let node = SCNNode(geometry: sphere)
+                node.position = SCNVector3(p.x, 0.05, p.y)
+                node.name = "measure"
+                root.addChildNode(node)
+            }
+            if points.count == 2 {
+                let vertices = [SCNVector3(points[0].x, 0.05, points[0].y),
+                                SCNVector3(points[1].x, 0.05, points[1].y)]
+                let source = SCNGeometrySource(vertices: vertices)
+                let indices: [Int32] = [0, 1]
+                let element = indices.withUnsafeBufferPointer { buf in
+                    SCNGeometryElement(data: Data(buffer: buf), primitiveType: .line,
+                                       primitiveCount: 1, bytesPerIndex: MemoryLayout<Int32>.size)
+                }
+                let line = SCNGeometry(sources: [source], elements: [element])
+                line.firstMaterial?.diffuse.contents = UIColor.orange
+                line.firstMaterial?.lightingModel = .constant
+                let node = SCNNode(geometry: line)
+                node.name = "measure"
+                root.addChildNode(node)
+            }
+        }
+    }
 
     private static func makeScene(_ cloud: GridPointCloud) -> SCNScene {
         let scene = SCNScene()
+
+        // 측정 탭 대상: 보이지 않는 바닥 평면 (y=0). 점 프리미티브는 히트테스트가 불안정해
+        // 바닥 투영 측정으로 통일 — 2D 격자 측정과 같은 수평 거리 시맨틱.
+        let floor = SCNNode(geometry: SCNPlane(width: 100, height: 100))
+        floor.eulerAngles.x = -.pi / 2
+        floor.opacity = 0.001   // 시각적으로 안 보이되 히트테스트에는 잡히게
+        floor.categoryBitMask = floorCategory
+        scene.rootNode.addChildNode(floor)
+
         guard !cloud.positions.isEmpty else { return scene }
 
         let count = cloud.positions.count

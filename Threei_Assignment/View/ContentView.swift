@@ -13,8 +13,13 @@ struct ContentView: View {
     @State private var mapPan: CGSize = .zero
     @State private var baseZoom: CGFloat = 1
     @State private var basePan: CGSize = .zero
-    /// 3D 점군 뷰어 표시 여부.
-    @State private var showPointCloudViewer = false
+    /// 전체화면 뷰어 모드 — 2D 미니맵 / 3D 점군. 측정 상태(measurePoints)는 두 모드가 공유.
+    @State private var mapViewMode: MapViewMode = .map2D
+
+    enum MapViewMode: String, CaseIterable {
+        case map2D = "2D"
+        case cloud3D = "3D"
+    }
     /// ARView(RealityKit 엔진) 생성은 메인 스레드를 수 초 블로킹 —
     /// 첫 프레임을 먼저 그리고 나서 마운트해 흰 런치 화면 체류를 없앤다.
     @State private var isARMounted = false
@@ -53,9 +58,10 @@ struct ContentView: View {
                     statusBar
                     Spacer()
                     if !isMinimapExpanded {
-                        // ponytail: 반경 6m 고정. 팬·줌을 넣으면 이 값이 줌 상태가 된다.
-                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 6)
-                            .frame(width: 150)
+                        // 반경 3m — 게임 미니맵처럼 주변이 크게 보이게 (사용자 결정, 6 → 3).
+                        // 넓은 맥락은 전체화면(팬·줌)이 담당.
+                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 3)
+                            .frame(width: 170)
                             .onTapGesture { isMinimapExpanded = true }
                     }
                 }
@@ -176,28 +182,45 @@ struct ContentView: View {
             Color.black.opacity(0.6).ignoresSafeArea()
                 .onTapGesture { closeExpandedMinimap() }
             VStack(spacing: 12) {
-                GeometryReader { geo in
-                    MinimapView(snapshot: viewModel.snapshot, zoomScale: mapZoom, panOffset: mapPan)
-                        .overlay { measureOverlay(side: geo.size.width) }
-                        .onTapGesture(coordinateSpace: .local) { p in
-                            addMeasurePoint(p, side: geo.size.width)
-                        }
-                        .simultaneousGesture(
-                            MagnificationGesture()
-                                .onChanged { mapZoom = min(max(baseZoom * $0, 1), 8) }
-                                .onEnded { _ in baseZoom = mapZoom }
-                        )
-                        .simultaneousGesture(
-                            DragGesture()
-                                .onChanged {
-                                    mapPan = CGSize(width: basePan.width + $0.translation.width,
-                                                    height: basePan.height + $0.translation.height)
-                                }
-                                .onEnded { _ in basePan = mapPan }
-                        )
+                Picker("보기", selection: $mapViewMode) {
+                    ForEach(MapViewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                .aspectRatio(1, contentMode: .fit)
-                .frame(maxWidth: .infinity)
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+
+                if mapViewMode == .map2D {
+                    GeometryReader { geo in
+                        MinimapView(snapshot: viewModel.snapshot, zoomScale: mapZoom, panOffset: mapPan)
+                            .overlay { measureOverlay(side: geo.size.width) }
+                            .onTapGesture(coordinateSpace: .local) { p in
+                                addMeasurePoint(p, side: geo.size.width)
+                            }
+                            .simultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { mapZoom = min(max(baseZoom * $0, 1), 8) }
+                                    .onEnded { _ in baseZoom = mapZoom }
+                            )
+                            .simultaneousGesture(
+                                DragGesture()
+                                    .onChanged {
+                                        mapPan = CGSize(width: basePan.width + $0.translation.width,
+                                                        height: basePan.height + $0.translation.height)
+                                    }
+                                    .onEnded { _ in basePan = mapPan }
+                            )
+                    }
+                    .aspectRatio(1, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                } else if let cloud = viewModel.pointCloud {
+                    PointCloudViewerView(cloud: cloud, measurePoints: $measurePoints)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ProgressView("점군 준비 중…")
+                        .tint(.white)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
 
                 VStack(spacing: 2) {
                     if let snapshot = viewModel.snapshot {
@@ -215,12 +238,6 @@ struct ContentView: View {
                         }
                     }
                     Button {
-                        viewModel.preparePointCloud()
-                        showPointCloudViewer = true
-                    } label: {
-                        expandedButtonLabel("3D", icon: "cube.transparent")
-                    }
-                    Button {
                         closeExpandedMinimap()
                     } label: {
                         expandedButtonLabel("닫기", icon: "xmark")
@@ -229,8 +246,13 @@ struct ContentView: View {
             }
             .padding(24)
         }
-        .onAppear { viewModel.prepareExport() }
-        .fullScreenCover(isPresented: $showPointCloudViewer) { pointCloudViewer }
+        .onAppear {
+            viewModel.prepareExport()
+            viewModel.preparePointCloud()   // 3D 전환 시 바로 보이게 미리 준비
+        }
+        .onChange(of: mapViewMode) { _, mode in
+            if mode == .cloud3D { viewModel.preparePointCloud() }  // 최신 격자 반영
+        }
     }
 
     private func expandedButtonLabel(_ title: String, icon: String) -> some View {
@@ -242,33 +264,12 @@ struct ContentView: View {
             .foregroundStyle(.white)
     }
 
-    /// 3D 점군 뷰어 (가산점: 3D 재구성 뷰어) — 회전·줌·팬은 SceneKit 기본 카메라 컨트롤.
-    private var pointCloudViewer: some View {
-        ZStack(alignment: .topTrailing) {
-            if let cloud = viewModel.pointCloud {
-                PointCloudViewerView(cloud: cloud)
-                    .ignoresSafeArea()
-            } else {
-                Color.black.ignoresSafeArea()
-                ProgressView("점군 준비 중…")
-                    .tint(.white)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            Button {
-                showPointCloudViewer = false
-            } label: {
-                expandedButtonLabel("닫기", icon: "xmark")
-            }
-            .padding()
-        }
-    }
-
     private func closeExpandedMinimap() {
         isMinimapExpanded = false
         measurePoints = []
         mapZoom = 1; mapPan = .zero
         baseZoom = 1; basePan = .zero
+        mapViewMode = .map2D
     }
 
     // MARK: - 거리 측정 (전체화면 전용 — 항등 변환이라 뷰 좌표/side = 정규화 좌표)
