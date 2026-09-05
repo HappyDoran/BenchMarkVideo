@@ -1,7 +1,7 @@
 ---
 title: Threei_Assignment 저장소 작업 규범
 kind: rule
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
 # Threei_Assignment — 실시간 공간 스캔 & Top-Down Minimap
