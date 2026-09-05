@@ -208,7 +208,11 @@ struct PointCloudViewerView: UIViewRepresentable {
         }
         let geometry = SCNGeometry(sources: [vertexSource, colorSource], elements: [element])
         geometry.firstMaterial?.lightingModel = .constant
-        geometry.firstMaterial?.isDoubleSided = true
+        // 돌하우스 트릭: ARKit mesh의 면 방향은 관측한 쪽(방 안)을 향한다.
+        // 뒷면 컬링을 켜면(양면 렌더 끔) 카메라를 등진 가까운 벽·천장이 투명해져
+        // 밖에서 봐도 내부가 보인다 — 천장 스캔 후 닫힌 상자가 되는 문제와
+        // top-down 미니맵이 천장에 덮이는 문제를 함께 해결 (뷰어·미니맵 공용 빌더).
+        geometry.firstMaterial?.isDoubleSided = false
         return geometry
     }
 }
