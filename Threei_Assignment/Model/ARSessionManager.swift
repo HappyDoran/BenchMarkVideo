@@ -28,6 +28,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     /// 궤적 점 수 상한 — 격자처럼 메모리·스냅샷 복사 비용을 고정 (2048점 × 8B = 16KB).
     /// 도달하면 점을 절반 솎고 기록 간격을 배가 — 경로 형태는 유지, 해상도만 낮아진다.
     private static let trajectoryMaxPoints = 2048
+    /// 재로컬라이즈 복귀 후 안정화 시간(s) — 정합 보정 시도 (드리프트 가산점).
+    /// 복귀 직후 ARKit이 월드·앵커를 미세 조정하며 수렴하는 구간의 포즈로 찍은 점이
+    /// 격자에 굳으면 기존 관측과 어긋난다(정합 오염). 실측(#21) 복귀 시퀀스 약 4초의
+    /// 마지막 정렬 단계를 덮는 값. 궤적도 같은 이유로 보류.
+    static let relocalizationSettleTime: TimeInterval = 1.0
 
     private let processingQueue = DispatchQueue(label: "scan.processing")
     private weak var session: ARSession?
@@ -52,6 +57,10 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var didRequestMeshWarmUp = false
     /// meshReady 발행 여부 — 세션 시작·초기화마다 첫 앵커에 한 번만.
     private var didReportMeshReady = false
+    /// 재로컬라이즈 → normal 전이 감지 플래그 (트래킹 콜백에서 set, 프레임에서 소비).
+    private var pendingRelocalizationSettle = false
+    /// 이 시각 전까지 누적·궤적 보류 (재로컬라이즈 안정화 구간).
+    private var settleUntil: TimeInterval = 0
 
     /// processingQueue에서 호출됨 — 받는 쪽에서 MainActor로 hop할 것.
     var onSnapshot: (@Sendable (MinimapSnapshot) -> Void)?
@@ -154,6 +163,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.trajectoryStride = Self.trajectoryStep
             self.lastHeading = 0
             self.lastSnapshot = nil
+            self.pendingRelocalizationSettle = false
+            self.settleUntil = 0
             self.didReportMeshReady = false  // resetSceneReconstruction으로 앵커가 지워짐 — 재생성 감지 재무장
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
@@ -208,8 +219,16 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             lastHeading = DepthFrameProcessor.heading(of: transform)
         }
 
-        // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다
-        if isAccumulating, case .normal = frame.camera.trackingState {
+        // 재로컬라이즈 복귀 첫 프레임: 안정화 창 시작 (정합 보정 시도 — 상수 주석 참고)
+        if pendingRelocalizationSettle, case .normal = frame.camera.trackingState {
+            pendingRelocalizationSettle = false
+            settleUntil = frame.timestamp + Self.relocalizationSettleTime
+        }
+        let isSettling = frame.timestamp < settleUntil
+
+        // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다.
+        // 재로컬라이즈 안정화 구간(isSettling)에도 보류 — 수렴 중 포즈가 정합을 오염시킨다.
+        if isAccumulating, !isSettling, case .normal = frame.camera.trackingState {
             if let depth = frame.smoothedSceneDepth ?? frame.sceneDepth {
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depth.depthMap,
@@ -243,7 +262,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 궤적은 일시정지 중에도 기록 — 어디로 걸어갔는지는 누적 여부와 무관하게 보여야 한다.
         // 단 tracking normal일 때만 — limited 포즈는 튀어서 궤적에 스파이크가 남는다.
         // 스캔 시작 전(ready)에도 세션은 돌지만 hasStarted가 false라 시작 전 이동은 남지 않는다.
-        if hasStarted, case .normal = frame.camera.trackingState,
+        if hasStarted, !isSettling, case .normal = frame.camera.trackingState,
            trajectory.last.map({ simd_distance($0, position) >= trajectoryStride }) ?? true {
             trajectory.append(position)
             // 상한 도달 시 절반 솎고 간격 배가 — 격자처럼 메모리·복사 비용을 고정
@@ -278,6 +297,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             message = "트래킹 초기화 중…"
         case .limited(.relocalizing):
             message = "위치 재인식 중…"
+            pendingRelocalizationSettle = true  // normal 복귀 후 첫 프레임에서 안정화 창 시작
         case .limited:
             message = "트래킹이 불안정합니다"
         }
