@@ -2,7 +2,7 @@ import CoreGraphics
 import CoreVideo
 import XCTest
 import simd
-@testable import Threei_Assignment
+@testable import BenchMarkVideo
 
 /// 좌표 규약(TECH_RULES.md 2절)을 고정하는 테스트. 실기기 없이 시뮬레이터에서 실행.
 final class DepthFrameProcessorTests: XCTestCase {

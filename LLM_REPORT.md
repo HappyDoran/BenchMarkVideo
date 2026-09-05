@@ -19,7 +19,7 @@
 | `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
 | `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
 | `ViewModel/ScanViewModel.swift` | LLM 생성 | 세션 attach 중계는 MVVM 재배치 때 추가 (사례 4) |
-| `Threei_AssignmentTests/*` (16건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
+| `BenchMarkVideoTests/*` (16건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
 | `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 명세 대응 절 | LLM 생성 | 세션 2에서 명세 원문을 그대로 제공 → 요구사항 번호·산출물 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 최종결과물 비디오는 프레임을 추출해 LLM이 직접 비교 |
 | 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
 | 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | 사람 설계 + LLM 본문 | 사람이 이 프로젝트용으로 구축한 Agent 작업 지원 체계 — 도구 중립 라우터(`AGENTS.md`, `CLAUDE.md`는 symlink), 사실 하나당 소유 문서 하나 원칙, 작업 유형별 skill, grep 기반 구조·문서 계약 검사. 구조와 소유권 규칙은 사람이 지정, 본문 작성은 LLM |
@@ -54,7 +54,7 @@
 ### 사례 5 — 단위 테스트를 "도입 조건부"로 미룬 정책 기각 (정책 수정, 사람 결정)
 - **무엇**: LLM이 `test-policy`를 쓰면서 XCTest 타깃을 "파라미터 두 번째 수정 또는 좌표 버그 발견 시" 도입하는 조건부로 미뤘다. 요청받지 않은 범위를 늘리지 않으려는 판단이었다.
 - **왜 틀렸나**: 요구사항에 테스트가 포함되는 상황에서 "도입 조건"은 곧 감점 사유다. 사람이 문서 완성도를 묻는 질문에 LLM 스스로 이 점을 지적했고, 사람이 적용을 결정.
-- **수정**: `Threei_AssignmentTests` 타깃과 공유 scheme을 `project.pbxproj`에 추가하고 Model 계층 테스트 14건 작성(좌표 규약·버퍼 필터·격자 분기·crop). 첫 실행에서 전부 통과. `test-policy`를 "Model 순수 로직은 테스트 필수"로 개정하고 `scripts/check-structure.sh`가 세 Model 타입의 테스트 파일 존재를 검사.
+- **수정**: `BenchMarkVideoTests` 타깃과 공유 scheme을 `project.pbxproj`에 추가하고 Model 계층 테스트 14건 작성(좌표 규약·버퍼 필터·격자 분기·crop). 첫 실행에서 전부 통과. `test-policy`를 "Model 순수 로직은 테스트 필수"로 개정하고 `scripts/check-structure.sh`가 세 Model 타입의 테스트 파일 존재를 검사.
 
 ### 사례 6 — 규약 문서의 heading 수식이 코드와 π만큼 어긋남 (교차 리뷰로 발견)
 - **무엇**: LLM이 규약 문서(TECH_RULES.md 좌표계 절)에 heading 수식을 `atan2(-m2.x, -m2.z)`로 적었으나 코드는 `atan2(-m2.x, +m2.z)` — 항등 변환에서 문서는 π, 코드는 0. "LLM은 좌표 변환에서 자신 있게 틀린다"가 규약 문서 자체에서 재현된 사례.

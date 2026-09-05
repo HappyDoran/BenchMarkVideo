@@ -3,7 +3,7 @@
 # grep 기반 — 간접 참조·의미 위반은 잡지 못한다.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-SRC=Threei_Assignment
+SRC=BenchMarkVideo
 ERRS=$(mktemp)
 trap 'rm -f "$ERRS"' EXIT
 err() { echo "✗ $1"; echo x >>"$ERRS"; }
@@ -44,8 +44,8 @@ done
 find "$SRC" -name '*.swift' | grep -vE "^$SRC/(App|Model|ViewModel|View)/[^/]+\.swift$" \
   | while read -r f; do err "MVVM 폴더 밖 또는 하위 폴더: $f"; done
 
-# 4b. 테스트 배치: Threei_AssignmentTests/*Tests.swift, Model 계층만 대상
-TESTS=Threei_AssignmentTests
+# 4b. 테스트 배치: BenchMarkVideoTests/*Tests.swift, Model 계층만 대상
+TESTS=BenchMarkVideoTests
 [ -d "$TESTS" ] || err "테스트 디렉터리 없음: $TESTS"
 find "$TESTS" -name '*.swift' 2>/dev/null | grep -vE "^$TESTS/[A-Za-z0-9_]+Tests\.swift$" \
   | while read -r f; do err "테스트 파일 이름·위치 규칙 위반 (<Type>Tests.swift): $f"; done

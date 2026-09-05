@@ -44,7 +44,7 @@ nonisolated enum GridExporter {
         return """
         ply
         format ascii 1.0
-        comment Threei_Assignment occupancy grid export (cell \(OccupancyGrid.cellSize)m, y: wall=\(wallExportHeight) floor=0)
+        comment BenchMarkVideo occupancy grid export (cell \(OccupancyGrid.cellSize)m, y: wall=\(wallExportHeight) floor=0)
         element vertex \(vertices.count)
         property float x
         property float y

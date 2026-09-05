@@ -1,4 +1,4 @@
-# Threei_Assignment — 실시간 공간 스캔 & Top-Down Minimap
+# BenchMarkVideo — 실시간 공간 스캔 & Top-Down Minimap
 
 iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 위에 스캔 영역을 표시하고, 동시에 위에서 내려다본 2D 미니맵(occupancy grid)을 그린다. 순수 Swift, SwiftUI + ARKit + RealityKit, 서드파티 의존성 없음.
 
@@ -18,14 +18,14 @@ iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 
 
 ```bash
 git clone <repo>
-cd Threei_Assignment
-open Threei_Assignment.xcodeproj
+cd BenchMarkVideo
+open BenchMarkVideo.xcodeproj
 ```
 
 1. Xcode에서 scheme을 선택한다 (공유 scheme 2개, 저장소에 포함).
-   - `Threei_Assignment-Production` — 실사용·성능 확인용. Release, 디버거 미부착, GPU Frame Capture Disabled, Metal API Validation off. 카메라 표시까지의 시간이 실사용 기준이다.
-   - `Threei_Assignment-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
-2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.threei.assignment`, 필요하면 변경).
+   - `BenchMarkVideo-Production` — 실사용·성능 확인용. Release, 디버거 미부착, GPU Frame Capture Disabled, Metal API Validation off. 카메라 표시까지의 시간이 실사용 기준이다.
+   - `BenchMarkVideo-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
+2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.benchmarkvideo`, 필요하면 변경).
 3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
 4. 첫 실행 시 카메라 권한을 허용한다. 우하단 "스캔 시작"을 누르면 좌하단 미니맵이 채워진다.
 
@@ -78,7 +78,7 @@ open Threei_Assignment.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 28건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA |
+| 테스트 코드 (+2) | ✅ `BenchMarkVideoTests/` 28건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA |
 | auto-fit, 이동 궤적 | ✅ 위 R2 표 |
 | 성능 최적화 전후 비교 (+2) | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
 | 거리·면적 측정 (+2) | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
@@ -140,11 +140,11 @@ iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04,
 
 ```bash
 # 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 28건
-xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
+xcodebuild test -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
 # 2. 실기기 타깃 컴파일 (서명 없이)
-xcodebuild -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
+xcodebuild -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
   -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 
 # 3. 구조·문서 계약 검사 (MVVM 배치, 계층 import 규칙, 테스트 배치, symlink, 문서 경로)

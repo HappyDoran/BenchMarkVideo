@@ -1,5 +1,5 @@
 import XCTest
-@testable import Threei_Assignment
+@testable import BenchMarkVideo
 
 /// 이벤트 처리(`handle`)와 제어 메서드의 상태 전이만 검증 — test-policy 전환 조건(분기 4개) 충족으로 개방.
 /// ARSession은 attach하지 않으므로 세션 부작용 없이 순수 상태 전이만 돈다.

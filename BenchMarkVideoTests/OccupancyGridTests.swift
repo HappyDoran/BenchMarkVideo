@@ -1,6 +1,6 @@
 import XCTest
 import simd
-@testable import Threei_Assignment
+@testable import BenchMarkVideo
 
 final class OccupancyGridTests: XCTestCase {
 

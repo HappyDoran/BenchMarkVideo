@@ -35,7 +35,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 1. **계층 경계가 곧 격리 경계다.** 이 앱의 핵심 제약은 동시성이다 — ARKit delegate는 `scan.processing` 직렬 큐에서 돌고, SwiftUI는 MainActor에서 돈다. MVVM의 세 계층이 이 두 실행 문맥에 그대로 대응한다: Model은 `nonisolated`로 큐 전용, ViewModel은 MainActor 상태 허브, View는 ViewModel만 읽는다. 폴더 이름만 보고도 "이 파일은 어느 스레드에서 도는가"를 알 수 있다. 격리 규칙을 폴더 규칙으로 바꾸면 기계 검사(`scripts/check-structure.sh`)가 가능해진다.
 2. **SwiftUI + `@Observable`의 기본 형태다.** View는 상태의 함수이고, 상태를 소유·발행하는 객체가 하나 필요하다. `ScanViewModel`이 그 하나다. 별도 프레임워크나 boilerplate 없이 Observation만으로 성립한다.
-3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`Threei_AssignmentTests/`, 16건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
+3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 16건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
 4. **LLM 협업에 유리하다.** 배치 규칙이 "파일이 어느 폴더에 있고 무엇을 import하면 안 되는가"라는 기계적 규칙이라 에이전트에게 강제할 수 있고, 위반이 커밋 전에 스크립트로 잡힌다. 기능 단위 폴더링(`Scan/`, `Minimap/`, `UI/`)은 어디까지가 UI이고 어디까지가 파이프라인인지 사람의 판단이 필요했다.
 5. **프로젝트 규모에 맞는 무게다.** 단일 화면, 파일 9개다. 세 계층으로 충분하다.
 

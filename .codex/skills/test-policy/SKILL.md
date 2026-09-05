@@ -18,7 +18,7 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 
 ## 테스트 위치와 범위
 
-- 타깃 `Threei_AssignmentTests` (호스트 앱 필요, 시뮬레이터 실행). 파일은 `Threei_AssignmentTests/<Type>Tests.swift`.
+- 타깃 `BenchMarkVideoTests` (호스트 앱 필요, 시뮬레이터 실행). 파일은 `BenchMarkVideoTests/<Type>Tests.swift`.
 - 대상은 `Model/`만. `sceneDepth` 없이 실행 가능한 순수 함수와 큐 전용 객체의 동기 메서드를 직접 호출한다. `CVPixelBuffer`는 테스트에서 직접 만든다.
 - View는 테스트하지 않는다. ViewModel은 `ScanViewModel.handle` 분기가 넷이 된 시점(`meshReady` 추가)에 전환 조건이 충족돼 `internal`로 열었다 — 이벤트 처리와 제어 메서드의 상태 전이만 `ScanViewModelTests.swift`에서 검증하고, 세션 부작용(ARSession)은 여전히 실기기 대상이다.
 - `ARSessionManager`는 delegate 콜백이 `ARFrame`을 요구해 단위 테스트 대상이 아니다. 실기기 매트릭스로 본다.

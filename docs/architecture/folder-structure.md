@@ -27,11 +27,11 @@ last_verified: 2026-09-05
 │   └── git-commit/SKILL.md
 ├── .claude/skills/<name>/SKILL.md -> ../../../.codex/skills/<name>/SKILL.md
 ├── scripts/check-structure.sh        # 구조·문서 계약 검사
-├── Threei_Assignment.xcodeproj/      # PBXFileSystemSynchronizedRootGroup — 디스크 = 타깃
+├── BenchMarkVideo.xcodeproj/      # PBXFileSystemSynchronizedRootGroup — 디스크 = 타깃
 │   └── xcshareddata/xcschemes/           # 공유 scheme 2개
-│       ├── Threei_Assignment-Development.xcscheme   # Debug + 테스트
-│       └── Threei_Assignment-Production.xcscheme    # Release 실사용
-├── Threei_AssignmentTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
+│       ├── BenchMarkVideo-Development.xcscheme   # Debug + 테스트
+│       └── BenchMarkVideo-Production.xcscheme    # Release 실사용
+├── BenchMarkVideoTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
 │   ├── DepthFrameProcessorTests.swift    # intrinsics 스케일, flipYZ, column-major, heading, 버퍼 필터
 │   ├── OccupancyGridTests.swift          # cellIndex, 벽/바닥/천장 분기, bounds, reset
 │   ├── MinimapRendererTests.swift        # crop 크기, 정규화 좌표·역변환, 이미지 재사용
@@ -39,9 +39,9 @@ last_verified: 2026-09-05
 │   ├── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색·점군 파생
 │   ├── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
 │   └── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
-└── Threei_Assignment/
+└── BenchMarkVideo/
     ├── App/
-    │   └── Threei_AssignmentApp.swift    # @main. ContentView 진입
+    │   └── BenchMarkVideoApp.swift    # @main. ContentView 진입
     ├── Model/                            # nonisolated, scan.processing 큐 전용
     │   ├── ARSessionManager.swift        # ARSession delegate, 스로틀, 궤적, ScanEvent 발행
     │   ├── DepthFrameProcessor.swift     # depth → 월드 점 unprojection, heading (순수 함수)

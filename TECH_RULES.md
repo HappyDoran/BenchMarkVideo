@@ -1,5 +1,5 @@
 ---
-title: Threei_Assignment 기술 스택과 구현 규칙
+title: BenchMarkVideo 기술 스택과 구현 규칙
 kind: rule
 last_verified: 2026-09-05
 ---
@@ -10,13 +10,13 @@ last_verified: 2026-09-05
 
 ## 1. 고정 기술 스택
 
-- Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `Threei_Assignment`
+- Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `BenchMarkVideo`
 - ARKit (`ARWorldTrackingConfiguration`, `smoothedSceneDepth`, `sceneReconstruction = .mesh`)
 - RealityKit `ARView` — 카메라 프리뷰와 스캔 mesh 시각화 (`.showSceneUnderstanding`)
 - SceneKit `SCNView` — 스캔 결과 뷰어(정점 색 mesh·점군, 회전·줌)와 미니맵 mesh top-down 렌더
 - Observation (`@Observable`) — ViewModel 상태 발행
 - CoreGraphics — 미니맵 비트맵 생성. simd — 좌표 연산
-- XCTest — `Threei_AssignmentTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
+- XCTest — `BenchMarkVideoTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
 - 서드파티 의존성 없음. 표준 프레임워크로 불가능한 경우에만 추가하고, 추가하면 이 절과 `DESIGN.md`에 사유를 적는다.
 - 테스트 기기: iPhone 15 Pro (LiDAR). Portrait 고정 (iPhone/iPad).
 

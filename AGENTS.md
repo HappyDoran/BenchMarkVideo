@@ -1,10 +1,10 @@
 ---
-title: Threei_Assignment 저장소 작업 규범
+title: BenchMarkVideo 저장소 작업 규범
 kind: rule
 last_verified: 2026-09-05
 ---
 
-# Threei_Assignment — 실시간 공간 스캔 & Top-Down Minimap
+# BenchMarkVideo — 실시간 공간 스캔 & Top-Down Minimap
 
 LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 앱. SwiftUI 단일 타깃, MVVM 계층 폴더링.
 
@@ -12,7 +12,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 
 ## 권위 순서 (충돌 시 위가 이긴다)
 
-1. 실행 가능한 계약 — 소스 코드, `Threei_Assignment.xcodeproj/project.pbxproj` 빌드 설정, `scripts/check-structure.sh`. 문서가 코드와 다르면 코드가 현재 사실이고, 문서를 고친다.
+1. 실행 가능한 계약 — 소스 코드, `BenchMarkVideo.xcodeproj/project.pbxproj` 빌드 설정, `scripts/check-structure.sh`. 문서가 코드와 다르면 코드가 현재 사실이고, 문서를 고친다.
 2. `TECH_RULES.md` — 고정 스택, 좌표계·동시성 규약, 구현 금지 사항.
 3. 아래 문서 맵의 소유 문서 — 각 사실의 단일 소유자.
 4. 이 문서의 절대 금지·작업 흐름.
@@ -75,7 +75,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 
 1. 시작 전에 범위를 나눈다 — 동작 변경인지, 구조 변경인지, 파라미터 튜닝인지, 실기기 확인이 필요한지.
 2. 변경 범위의 소유 문서만 읽는다. 전부 읽지 않는다.
-3. 코드를 바꾸는 모든 작업은 `.codex/skills/test-policy/SKILL.md`를 적용한다 — Model 순수 로직은 `Threei_AssignmentTests/`에 테스트를 함께 두고, `xcodebuild test`와 `scripts/check-structure.sh`를 통과시키고, 런타임 동작이 바뀌면 실기기 수동 매트릭스를 남긴다.
+3. 코드를 바꾸는 모든 작업은 `.codex/skills/test-policy/SKILL.md`를 적용한다 — Model 순수 로직은 `BenchMarkVideoTests/`에 테스트를 함께 두고, `xcodebuild test`와 `scripts/check-structure.sh`를 통과시키고, 런타임 동작이 바뀌면 실기기 수동 매트릭스를 남긴다.
 4. 사실이 바뀌면 문서 맵의 소유 문서를 같은 커밋에서 갱신하고 `last_verified`를 갱신 날짜로 맞춘다.
 5. 커밋은 의미 단위. 제목 끝에 작성 주체 `[llm]`/`[human]`/`[llm+human]`을 표기하고 본문에 사유와 검증을 남긴다 (`.codex/skills/git-commit/SKILL.md`).
 6. 완료 보고에는 실행한 검증과 실행하지 못한 검증을 구분해 적는다.
