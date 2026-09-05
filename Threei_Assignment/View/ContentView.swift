@@ -93,6 +93,8 @@ struct ContentView: View {
                     Text("·  \(snapshot.totalPoints.formatted()) pts  ·  \(snapshot.occupiedCellCount) cells")
                         .font(.footnote.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)   // 미니맵(170pt)과 폭 경쟁 시 줄바꿈 대신 축소
                 }
             }
             .padding(.horizontal, 12)
@@ -212,15 +214,18 @@ struct ContentView: View {
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                 } else if let cloud = viewModel.pointCloud {
+                    // 2D와 같은 정사각 프레임 — 모드 전환 시 피커·버튼 위치가 흔들리지 않는다.
                     PointCloudViewerView(cloud: cloud, mesh: viewModel.coloredMesh,
                                          measurePoints: $measurePoints)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
                 } else {
                     ProgressView("점군 준비 중…")
                         .tint(.white)
                         .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
                 }
 
                 VStack(spacing: 2) {
@@ -283,11 +288,18 @@ struct ContentView: View {
         }
     }
 
+    /// 뷰 중앙 앵커 줌 변환의 offset 성분 (MinimapView.mapTransform과 같은 식).
+    private func zoomOffset(side: CGFloat) -> CGSize {
+        let centering = side / 2 * (1 - mapZoom)
+        return CGSize(width: centering + mapPan.width, height: centering + mapPan.height)
+    }
+
     private func addMeasurePoint(_ p: CGPoint, side: CGFloat) {
         guard side > 0, let snapshot = viewModel.snapshot else { return }
-        // 팬·줌 역변환: 뷰 좌표 → (팬 제거, 줌 나눔) → 정규화 좌표
-        let n = CGPoint(x: (p.x - mapPan.width) / mapZoom / side,
-                        y: (p.y - mapPan.height) / mapZoom / side)
+        // 팬·줌(중앙 앵커) 역변환: 뷰 좌표 → 정규화 좌표
+        let o = zoomOffset(side: side)
+        let n = CGPoint(x: (p.x - o.width) / mapZoom / side,
+                        y: (p.y - o.height) / mapZoom / side)
         let world = snapshot.worldPoint(normalized: n)
         measurePoints = measurePoints.count >= 2 ? [world] : measurePoints + [world]
     }
@@ -295,10 +307,11 @@ struct ContentView: View {
     private func measureOverlay(side: CGFloat) -> some View {
         Canvas { context, _ in
             guard let snapshot = viewModel.snapshot else { return }
+            let o = zoomOffset(side: side)
             let points = measurePoints.map { w -> CGPoint in
                 let n = snapshot.normalizedPoint(w)
-                return CGPoint(x: n.x * side * mapZoom + mapPan.width,
-                               y: n.y * side * mapZoom + mapPan.height)
+                return CGPoint(x: n.x * side * mapZoom + o.width,
+                               y: n.y * side * mapZoom + o.height)
             }
             if points.count == 2 {
                 var line = Path()

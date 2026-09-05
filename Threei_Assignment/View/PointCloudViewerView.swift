@@ -107,10 +107,12 @@ struct PointCloudViewerView: UIViewRepresentable {
         // 정점 색 mesh가 있으면 삼각형으로 — 점군보다 레퍼런스 앱에 가까운 인상.
         if let mesh, !mesh.positions.isEmpty {
             scene.rootNode.addChildNode(SCNNode(geometry: makeMeshGeometry(mesh)))
+            addCamera(to: scene, framing: mesh.positions)
             return scene
         }
 
         guard !cloud.positions.isEmpty else { return scene }
+        addCamera(to: scene, framing: cloud.positions)
 
         let count = cloud.positions.count
         let vertexData = cloud.positions.withUnsafeBufferPointer { Data(buffer: $0) }
@@ -150,6 +152,26 @@ struct PointCloudViewerView: UIViewRepresentable {
 
         scene.rootNode.addChildNode(SCNNode(geometry: geometry))
         return scene
+    }
+
+    /// 초기 카메라: 방 밖 위쪽 사선에서 전체를 내려다보게 배치 — 기본 카메라는 방 "안"에서
+    /// 시작해 근평면에 벽이 잘려 보인다(레퍼런스 앱의 아이소메트릭 첫 화면과 같은 각도로 교정).
+    private static func addCamera(to scene: SCNScene, framing positions: [SIMD3<Float>]) {
+        var minV = positions[0], maxV = positions[0]
+        for p in positions { minV = simd_min(minV, p); maxV = simd_max(maxV, p) }
+        let center = (minV + maxV) / 2
+        let distance = max(simd_length(maxV - minV), 2) * 1.1
+
+        let camera = SCNCamera()
+        camera.zNear = 0.05                       // 근접 클리핑 완화
+        camera.zFar = Double(distance) * 10
+        let node = SCNNode()
+        node.camera = camera
+        let dir = simd_normalize(SIMD3<Float>(0.6, 0.9, 0.6))   // 위 사선
+        let pos = center + dir * distance
+        node.position = SCNVector3(pos.x, pos.y, pos.z)
+        node.look(at: SCNVector3(center.x, center.y, center.z))
+        scene.rootNode.addChildNode(node)
     }
 
     /// ColoredMesh → 정점 색 삼각형 지오메트리. 조명 없이 색 그대로, 양면 렌더.

@@ -46,10 +46,13 @@ struct MinimapView: View {
     }
 
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
-    /// visibleRadius가 nil이면 사용자 팬·줌(기본 항등) — 전체화면 제스처가 같은 변환 경로를 탄다.
+    /// visibleRadius가 nil이면 사용자 팬·줌 — 확대는 **뷰 중앙 기준**(좌상단 앵커면 맵이 구석으로 밀려남).
+    /// view = n·side·zoom + center·(1−zoom) + pan. ContentView의 탭 역변환과 같은 식.
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
         guard let visibleRadius else {
-            return (zoomScale, CGPoint(x: panOffset.width, y: panOffset.height))
+            let centering = side / 2 * (1 - zoomScale)
+            return (zoomScale, CGPoint(x: centering + panOffset.width,
+                                       y: centering + panOffset.height))
         }
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))
         let n = snapshot.normalizedPoint(snapshot.cameraPosition)
