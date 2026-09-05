@@ -30,6 +30,9 @@ struct ARPreviewView: UIViewRepresentable {
         return arView
     }
 
+    // 표시 셰이더 별도 예열은 두지 않는다 — 스캔 전 표시를 잠깐 켜는 방식은 체크무늬가
+    // 사용자에게 노출돼 "mesh 보임 = 기록 중" 문법을 깬다 (실기기 확인). 첫 시작이
+    // 재구성을 리셋하므로 셰이더 컴파일은 앵커 재생성 창("주변 인식 중…" 배지) 안에 흡수된다.
     func updateUIView(_ uiView: ARView, context: Context) {
         if showMesh {
             uiView.debugOptions.insert(.showSceneUnderstanding)
@@ -50,7 +53,7 @@ final class FPSMonitor {
     private var windowStart: CFTimeInterval = 0
     private var frameCount = 0
     private var worstGap: CFTimeInterval = 0
-    private let log = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
+    private let log = Logger(subsystem: "com.doran.benchmarkvideo", category: "perf")
 
     func start() {
         guard link == nil else { return }

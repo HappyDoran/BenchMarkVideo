@@ -1,7 +1,7 @@
 ---
 title: 현재 폴더 구성 스냅샷
 kind: snapshot
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
 # 현재 폴더 구성 스냅샷
@@ -19,35 +19,44 @@ last_verified: 2026-09-04
 ├── docs/
 │   ├── AI_AGENT_HARNESS.md           # Agent 작업 지원 체계 설명
 │   ├── architecture/folder-structure.md
-│   ├── spec/requirements.md              # 요구사항 번호·산출물·배점 요약
-│   ├── spec/gap-analysis.md              # 명세 대비 갭 분석·보완 백로그
-│   └── spec/device-test-checklist.md     # 실기기 검증 회차별 진행 상태
+│   ├── spec/requirements.md              # 요구사항 번호·문서 구성 요약
+│   └── spec/gap-analysis.md              # 요구사항 대비 갭 분석·보완 백로그
 ├── .codex/skills/                    # canonical skill (Codex 진입)
 │   ├── mvvm-architecture/SKILL.md
 │   ├── test-policy/SKILL.md
 │   └── git-commit/SKILL.md
 ├── .claude/skills/<name>/SKILL.md -> ../../../.codex/skills/<name>/SKILL.md
 ├── scripts/check-structure.sh        # 구조·문서 계약 검사
-├── Threei_Assignment.xcodeproj/      # PBXFileSystemSynchronizedRootGroup — 디스크 = 타깃
-│   └── xcshareddata/xcschemes/Threei_Assignment.xcscheme   # 공유 scheme (build + test)
-├── Threei_AssignmentTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
+├── BenchMarkVideo.xcodeproj/      # PBXFileSystemSynchronizedRootGroup — 디스크 = 타깃
+│   └── xcshareddata/xcschemes/           # 공유 scheme 2개
+│       ├── BenchMarkVideo-Development.xcscheme   # Debug + 테스트
+│       └── BenchMarkVideo-Production.xcscheme    # Release 실사용
+├── BenchMarkVideoTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
 │   ├── DepthFrameProcessorTests.swift    # intrinsics 스케일, flipYZ, column-major, heading, 버퍼 필터
 │   ├── OccupancyGridTests.swift          # cellIndex, 벽/바닥/천장 분기, bounds, reset
-│   └── MinimapRendererTests.swift        # crop 크기, 정규화 좌표
-└── Threei_Assignment/
+│   ├── MinimapRendererTests.swift        # crop 크기, 정규화 좌표·역변환, 이미지 재사용
+│   ├── ScanViewModelTests.swift          # 이벤트 → 배지 상태, retry·reset 전이
+│   ├── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색·점군 파생
+│   ├── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
+│   └── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
+└── BenchMarkVideo/
     ├── App/
-    │   └── Threei_AssignmentApp.swift    # @main. ContentView 진입
+    │   └── BenchMarkVideoApp.swift    # @main. ContentView 진입
     ├── Model/                            # nonisolated, scan.processing 큐 전용
     │   ├── ARSessionManager.swift        # ARSession delegate, 스로틀, 궤적, ScanEvent 발행
     │   ├── DepthFrameProcessor.swift     # depth → 월드 점 unprojection, heading (순수 함수)
     │   ├── OccupancyGrid.swift           # 5cm × 400×400 hit 격자, 높이 밴드 필터
-    │   └── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
+    │   ├── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
+    │   ├── GridExporter.swift            # 격자 → 점군(GridPointCloud)·.ply 텍스트 (뷰어·내보내기 공용)
+    │   └── MeshBuilder.swift             # 복셀 색 저장소 + ARKit mesh → 정점 색 mesh (3D 뷰어)
     ├── ViewModel/                        # MainActor
     │   └── ScanViewModel.swift           # @Observable 상태 허브, ScanState, 세션 attach 중계
     ├── View/                             # SwiftUI, ViewModel과 불변 스냅샷만 참조
     │   ├── ContentView.swift             # 화면 조립, 상태바, 제어 버튼, 예외 화면
     │   ├── ARPreviewView.swift           # UIViewRepresentable — ARView 생성, 세션 콜백
-    │   └── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas
+    │   ├── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas, 전체화면 팬·줌 변환
+    │   ├── PointCloudViewerView.swift    # SceneKit 정점 색 mesh/점군 3D 뷰어 (회전·줌·팬·바닥 탭 측정)
+    │   └── MeshTopDownView.swift         # mesh 직교 하향 렌더 — 미니맵 배경 레이어
     └── Assets.xcassets/
 ```
 
@@ -62,6 +71,6 @@ last_verified: 2026-09-04
 
 ## 현재 예외
 
-- `MinimapSnapshot`과 `ScanEvent`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
+- `MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
 - `ARPreviewView`는 `ARSession` 타입을 콜백 시그니처에 쓰기 위해 `ARKit`을 import한다. Model 객체를 참조하지는 않는다.
 - 테스트는 Model 계층만 대상이다. ViewModel·View 테스트는 없고, 도입 조건은 `.codex/skills/test-policy/SKILL.md`.

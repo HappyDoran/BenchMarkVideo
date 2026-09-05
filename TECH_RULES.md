@@ -1,7 +1,7 @@
 ---
-title: Threei_Assignment 기술 스택과 구현 규칙
+title: BenchMarkVideo 기술 스택과 구현 규칙
 kind: rule
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
 # 기술 스택 및 구현 규칙
@@ -10,12 +10,13 @@ last_verified: 2026-09-04
 
 ## 1. 고정 기술 스택
 
-- Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `Threei_Assignment`
+- Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `BenchMarkVideo`
 - ARKit (`ARWorldTrackingConfiguration`, `smoothedSceneDepth`, `sceneReconstruction = .mesh`)
 - RealityKit `ARView` — 카메라 프리뷰와 스캔 mesh 시각화 (`.showSceneUnderstanding`)
+- SceneKit `SCNView` — 스캔 결과 뷰어(정점 색 mesh·점군, 회전·줌)와 미니맵 mesh top-down 렌더
 - Observation (`@Observable`) — ViewModel 상태 발행
 - CoreGraphics — 미니맵 비트맵 생성. simd — 좌표 연산
-- XCTest — `Threei_AssignmentTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
+- XCTest — `BenchMarkVideoTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
 - 서드파티 의존성 없음. 표준 프레임워크로 불가능한 경우에만 추가하고, 추가하면 이 절과 `DESIGN.md`에 사유를 적는다.
 - 테스트 기기: iPhone 15 Pro (LiDAR). Portrait 고정 (iPhone/iPad).
 
@@ -34,7 +35,7 @@ last_verified: 2026-09-04
 - Model 계층(`ARSessionManager`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)은 `nonisolated` 명시. 가변 상태는 **전용 직렬 큐 `scan.processing`에서만 접근**한다. `ARSession.delegateQueue` = 그 큐.
 - delegate 콜백 안에서 `ARFrame`을 오래 붙잡지 않는다 (프레임 풀 고갈). 콜백 내 동기 처리 목표 <10ms. 스로틀 미달 프레임은 즉시 반환.
 - Model → ViewModel 전달은 불변 스냅샷(`MinimapSnapshot`: CGImage + pose)과 `ScanEvent` 값만. ViewModel이 `Task { @MainActor in }`로 hop한다.
-- ViewModel → Model 제어(`startAccumulating`/`pauseAccumulating`/`reset`)는 아무 스레드에서 호출 가능하고 Model 내부에서 큐로 hop한다.
+- ViewModel → Model 제어(`attach`/`startAccumulating`/`pauseAccumulating`/`reset`)는 **메인 스레드에서만 호출**한다 — `session.run`과 mesh 활성 플래그가 메인 전용이고, 호출자(ViewModel)가 MainActor라 자연 성립. 누적 상태 변경만 Model 내부에서 큐로 hop한다.
 
 ## 4. 아키텍처
 
@@ -65,7 +66,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | 금지 | 이유 | 허용 예외 |
 | --- | --- | --- |
 | `Model/`에서 `SwiftUI`·`UIKit`·`Observation` import | 파이프라인이 UI 프레임워크와 MainActor에 묶여 큐 격리와 단위 테스트 가능성이 깨진다 | 없음 |
-| `View/`가 `ARSessionManager`·`OccupancyGrid`·`MinimapRenderer`·`DepthFrameProcessor`를 직접 참조 | ViewModel이 상태 허브가 아니게 되고 큐 hop 규약을 우회한다 | `MinimapSnapshot`·`ScanEvent` 같은 불변 값 타입 소비 |
+| `View/`가 `ARSessionManager`·`OccupancyGrid`·`MinimapRenderer`·`DepthFrameProcessor`를 직접 참조 | ViewModel이 상태 허브가 아니게 되고 큐 hop 규약을 우회한다 | `MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud` 같은 불변 값 타입 소비 |
 | `Model/` 최상위 타입에 `nonisolated` 누락 | 기본 격리가 MainActor라 delegate 큐에서 접근하는 코드가 컴파일러 격리 검사와 충돌한다 | 없음 |
 | delegate 콜백 밖으로 `ARFrame` 또는 그 버퍼 참조를 넘김 | ARKit 프레임 풀 고갈로 프레임 드롭 | 없음 — 필요한 값은 콜백 안에서 복사 |
 | `scan.processing` 밖에서 grid·trajectory·`isAccumulating` 접근 | data race. `@unchecked Sendable`은 이 규약을 전제로만 안전하다 | 없음 |

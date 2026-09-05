@@ -1,10 +1,10 @@
 ---
-title: Threei_Assignment 저장소 작업 규범
+title: BenchMarkVideo 저장소 작업 규범
 kind: rule
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
-# Threei_Assignment — 실시간 공간 스캔 & Top-Down Minimap
+# BenchMarkVideo — 실시간 공간 스캔 & Top-Down Minimap
 
 LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 앱. SwiftUI 단일 타깃, MVVM 계층 폴더링.
 
@@ -12,7 +12,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 
 ## 권위 순서 (충돌 시 위가 이긴다)
 
-1. 실행 가능한 계약 — 소스 코드, `Threei_Assignment.xcodeproj/project.pbxproj` 빌드 설정, `scripts/check-structure.sh`. 문서가 코드와 다르면 코드가 현재 사실이고, 문서를 고친다.
+1. 실행 가능한 계약 — 소스 코드, `BenchMarkVideo.xcodeproj/project.pbxproj` 빌드 설정, `scripts/check-structure.sh`. 문서가 코드와 다르면 코드가 현재 사실이고, 문서를 고친다.
 2. `TECH_RULES.md` — 고정 스택, 좌표계·동시성 규약, 구현 금지 사항.
 3. 아래 문서 맵의 소유 문서 — 각 사실의 단일 소유자.
 4. 이 문서의 절대 금지·작업 흐름.
@@ -25,11 +25,10 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | --- | --- | --- |
 | 고정 스택, 좌표계 규약, 동시성 규약, 구현 금지 | `TECH_RULES.md` | 프레임워크 변경, 좌표·큐 규칙 변경, 금지 패턴 추가 |
 | 프로젝트 개요, 요구사항 대응표, 데모, 빌드·실행·검증 명령, 실기기 수동 검증 절차 | `README.md` | 기능·요구사항 상태·검증 절차 변경 |
-| 요구사항 번호(R1~R4), 선택 항목 배점, 산출물·평가 조건 | `docs/spec/requirements.md` | 요구사항 명세 원문 변경 |
-| 명세 대비 갭 분석, 보완 백로그와 우선순위, 가산점 후보 | `docs/spec/gap-analysis.md` | 백로그 항목 완료, 실기기 검증으로 판정 변경, 재점검 |
-| 실기기 검증 회차별 진행 상태, 코드 사전 추적 결과 | `docs/spec/device-test-checklist.md` | 실기기 회차 완료, 런타임 동작 변경으로 시나리오 추가 |
+| 요구사항 번호(R1~R4), 선택 항목, 문서 구성·필수 조건 | `docs/spec/requirements.md` | 요구사항 정의 변경 |
+| 요구사항 대비 갭 분석, 보완 백로그와 우선순위, 선택 항목 후보 | `docs/spec/gap-analysis.md` | 백로그 항목 완료, 실기기 검증으로 판정 변경, 재점검 |
 | 설계 판단 근거 (MVVM 채택, 시각화 방식, 격자·스로틀·필터 파라미터) | `DESIGN.md` | 구조 판단 또는 파이프라인 파라미터 변경 |
-| 최종결과물 데모 영상 관찰과 현재 구현 범위 차이 | `DESIGN.md` §9 | 최종결과물 영상 재분석, 요구사항 변경 |
+| 참고 영상 관찰과 현재 구현 범위 차이 | `DESIGN.md` §11 | 참고 영상 재분석, 요구사항 변경 |
 | MVVM 계층 배치 규칙과 허용 의존 방향 | `.codex/skills/mvvm-architecture/SKILL.md` | 계층 규칙, 허용 import 변경 |
 | 현재 폴더·파일 책임 스냅샷 | `docs/architecture/folder-structure.md` | 파일 추가·이동·삭제 |
 | 검증 계층 (단위 테스트·컴파일·구조 검사·실기기 매트릭스)과 테스트 필수 대상 | `.codex/skills/test-policy/SKILL.md` | 테스트 계층·필수 대상·실행 명령 변경 |
@@ -52,7 +51,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | 모든 코드 변경 | `TECH_RULES.md`, `.codex/skills/test-policy/SKILL.md` |
 | 파일 추가·이동, 리팩토링 | `.codex/skills/mvvm-architecture/SKILL.md`, `docs/architecture/folder-structure.md` |
 | 파이프라인 파라미터(격자·스로틀·높이 밴드·샘플링) 튜닝 | `DESIGN.md`, `TECH_RULES.md` 좌표계 절 |
-| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `docs/spec/device-test-checklist.md`, `README.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
+| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `README.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
 | 문서·Agent 체계 변경 | `docs/AI_AGENT_HARNESS.md`, 이 문서의 문서 추가 규칙 |
 
 ## 절대 금지 (이 문서가 소유)
@@ -76,7 +75,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 
 1. 시작 전에 범위를 나눈다 — 동작 변경인지, 구조 변경인지, 파라미터 튜닝인지, 실기기 확인이 필요한지.
 2. 변경 범위의 소유 문서만 읽는다. 전부 읽지 않는다.
-3. 코드를 바꾸는 모든 작업은 `.codex/skills/test-policy/SKILL.md`를 적용한다 — Model 순수 로직은 `Threei_AssignmentTests/`에 테스트를 함께 두고, `xcodebuild test`와 `scripts/check-structure.sh`를 통과시키고, 런타임 동작이 바뀌면 실기기 수동 매트릭스를 남긴다.
+3. 코드를 바꾸는 모든 작업은 `.codex/skills/test-policy/SKILL.md`를 적용한다 — Model 순수 로직은 `BenchMarkVideoTests/`에 테스트를 함께 두고, `xcodebuild test`와 `scripts/check-structure.sh`를 통과시키고, 런타임 동작이 바뀌면 실기기 수동 매트릭스를 남긴다.
 4. 사실이 바뀌면 문서 맵의 소유 문서를 같은 커밋에서 갱신하고 `last_verified`를 갱신 날짜로 맞춘다.
 5. 커밋은 의미 단위. 제목 끝에 작성 주체 `[llm]`/`[human]`/`[llm+human]`을 표기하고 본문에 사유와 검증을 남긴다 (`.codex/skills/git-commit/SKILL.md`).
 6. 완료 보고에는 실행한 검증과 실행하지 못한 검증을 구분해 적는다.

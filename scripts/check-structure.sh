@@ -3,7 +3,7 @@
 # grep 기반 — 간접 참조·의미 위반은 잡지 못한다.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-SRC=Threei_Assignment
+SRC=BenchMarkVideo
 ERRS=$(mktemp)
 trap 'rm -f "$ERRS"' EXIT
 err() { echo "✗ $1"; echo x >>"$ERRS"; }
@@ -11,7 +11,7 @@ err() { echo "✗ $1"; echo x >>"$ERRS"; }
 # 1. 필수 문서
 for f in AGENTS.md TECH_RULES.md README.md DESIGN.md LLM_REPORT.md \
          docs/AI_AGENT_HARNESS.md docs/architecture/folder-structure.md docs/spec/requirements.md \
-         docs/spec/gap-analysis.md docs/spec/device-test-checklist.md; do
+         docs/spec/gap-analysis.md; do
   [ -f "$f" ] || err "필수 문서 없음: $f"
 done
 
@@ -44,13 +44,16 @@ done
 find "$SRC" -name '*.swift' | grep -vE "^$SRC/(App|Model|ViewModel|View)/[^/]+\.swift$" \
   | while read -r f; do err "MVVM 폴더 밖 또는 하위 폴더: $f"; done
 
-# 4b. 테스트 배치: Threei_AssignmentTests/*Tests.swift, Model 계층만 대상
-TESTS=Threei_AssignmentTests
+# 4b. 테스트 배치: BenchMarkVideoTests/*Tests.swift, Model 계층만 대상
+TESTS=BenchMarkVideoTests
 [ -d "$TESTS" ] || err "테스트 디렉터리 없음: $TESTS"
 find "$TESTS" -name '*.swift' 2>/dev/null | grep -vE "^$TESTS/[A-Za-z0-9_]+Tests\.swift$" \
   | while read -r f; do err "테스트 파일 이름·위치 규칙 위반 (<Type>Tests.swift): $f"; done
-grep -lE '\b(ContentView|MinimapView|ARPreviewView|ScanViewModel)\b' "$TESTS"/*.swift 2>/dev/null \
-  | while read -r f; do err "테스트가 View/ViewModel 참조 (Model만 대상): $f"; done
+# View는 테스트 금지. ScanViewModel은 handle 분기 4개로 test-policy 전환 조건 충족 — 자기 테스트 파일에서만 허용.
+grep -lE '\b(ContentView|MinimapView|ARPreviewView)\b' "$TESTS"/*.swift 2>/dev/null \
+  | while read -r f; do err "테스트가 View 참조 (View 제외): $f"; done
+grep -lE '\bScanViewModel\b' "$TESTS"/*.swift 2>/dev/null | grep -v "ScanViewModelTests.swift" \
+  | while read -r f; do err "ScanViewModel 참조는 ScanViewModelTests.swift에서만: $f"; done
 for m in DepthFrameProcessor OccupancyGrid MinimapRenderer; do
   [ -f "$TESTS/${m}Tests.swift" ] || err "Model 순수 로직 테스트 없음: $TESTS/${m}Tests.swift"
 done
@@ -60,7 +63,7 @@ check_absent() { # dir pattern message
   grep -lE "$2" "$SRC/$1"/*.swift 2>/dev/null | while read -r f; do err "$3: $f"; done
 }
 VIEW_TYPES='ContentView|MinimapView|ARPreviewView'
-MODEL_OBJECTS='ARSessionManager|OccupancyGrid|MinimapRenderer|DepthFrameProcessor'
+MODEL_OBJECTS='ARSessionManager|OccupancyGrid|MinimapRenderer|DepthFrameProcessor|VoxelColorStore|GridExporter'
 check_absent Model     '^import (SwiftUI|UIKit|Observation)$'   "Model에서 UI 프레임워크 import"
 check_absent Model     "\b(ScanViewModel|$VIEW_TYPES)\b"         "Model이 상위 계층 참조"
 check_absent ViewModel '^import (SwiftUI|UIKit|RealityKit)$'    "ViewModel에서 UI 프레임워크 import"

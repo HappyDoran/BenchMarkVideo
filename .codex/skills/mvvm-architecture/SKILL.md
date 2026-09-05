@@ -13,7 +13,7 @@ description: 이 저장소의 MVVM 계층 배치 규칙. 파일을 추가·이�
 App  →  View  →  ViewModel  →  Model
 ```
 
-- `View`는 `ViewModel`과 Model의 불변 값 타입(`MinimapSnapshot`, `ScanEvent`)만 참조한다. Model 객체(`ARSessionManager`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)를 직접 호출하지 않는다.
+- `View`는 `ViewModel`과 Model의 불변 값 타입(`MinimapSnapshot`, `ScanEvent`, `ColoredMesh`, `GridPointCloud`)만 참조한다. Model 객체(`ARSessionManager`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)를 직접 호출하지 않는다.
 - `ViewModel`은 `Model`을 소유·호출하고 `View`를 모른다. `SwiftUI`·`UIKit`을 import하지 않는다 (`ARKit`은 세션 타입 때문에 허용).
 - `Model`은 `ViewModel`·`View`를 모른다. `SwiftUI`·`UIKit`·`Observation`을 import하지 않는다. 최상위 타입은 `nonisolated`를 명시한다.
 - 위 규칙은 `scripts/check-structure.sh`가 grep으로 검사한다. 스크립트가 잡지 못하는 위반(간접 참조 등)은 리뷰에서 본다.

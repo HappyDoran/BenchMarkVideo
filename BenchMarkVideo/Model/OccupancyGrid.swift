@@ -12,8 +12,9 @@ nonisolated final class OccupancyGrid {
     static let dimension = 400
     // ponytail: 20m 초과 영역은 버림. 대공간 필요해지면 원점 재중심 or chunk 확장.
 
-    /// 높이 밴드 (월드 y, 원점 = 스캔 시작 시 기기 높이 ≈ 바닥 위 1.2~1.5m).
+    /// 높이 밴드 (스캔 시작 시 기기 높이 기준 상대 y ≈ 바닥 위 1.2~1.5m 가정).
     /// wallBand: 바닥 위 약 0.3~2.2m 구간 → 벽·가구. 그 아래 = 바닥, 위 = 천장(버림).
+    /// 월드 y 원점은 앱 실행 시점이라 스캔 시작 높이와 다를 수 있음 — accumulate의 originY로 재기준.
     // ponytail: 시작 높이 가정에 의존. 드리프트/정확도 문제 보이면 ARPlaneAnchor 바닥 추정으로 교체.
     static let wallBand: ClosedRange<Float> = -0.9...0.7
     static let floorBelow: Float = -0.9
@@ -30,32 +31,48 @@ nonisolated final class OccupancyGrid {
     /// 데이터가 존재하는 셀 범위 (렌더링 crop용). nil = 아직 비어 있음.
     private(set) var usedBounds: (minCol: Int, maxCol: Int, minRow: Int, maxRow: Int)?
     private(set) var totalPoints = 0
-    /// 관측된 셀 수 — 커버리지 피드백용.
+    /// 관측된 셀 수 — 커버리지 피드백용. 렌더 임계값(wall 3/floor 2)을 넘은 셀만 집계.
     private(set) var occupiedCellCount = 0
+
+    /// 월드 (x, z) → 연속 셀 좌표 (반올림·경계 처리 전).
+    /// 월드→격자 매핑의 단일 정의 — cellIndex와 MinimapSnapshot.normalizedPoint가 여기서 파생된다.
+    static func continuousCell(x: Float, z: Float) -> SIMD2<Float> {
+        SIMD2(x / cellSize + Float(dimension / 2), z / cellSize + Float(dimension / 2))
+    }
+
+    /// 연속 셀 좌표 → 월드 (x, z). continuousCell의 역변환 — 미니맵 탭 위치를 월드로 되돌릴 때 사용.
+    static func worldXZ(continuousCell c: SIMD2<Float>) -> SIMD2<Float> {
+        (c - Float(dimension / 2)) * cellSize
+    }
 
     /// 월드 (x, z) → 셀 (col, row). row는 +z 방향으로 증가 (이미지 아래 방향 = north-up).
     static func cellIndex(x: Float, z: Float) -> (col: Int, row: Int)? {
-        let col = Int((x / cellSize).rounded()) + dimension / 2
-        let row = Int((z / cellSize).rounded()) + dimension / 2
+        let c = continuousCell(x: x, z: z)
+        let col = Int(c.x.rounded()), row = Int(c.y.rounded())
         guard col >= 0, col < dimension, row >= 0, row < dimension else { return nil }
         return (col, row)
     }
 
-    func accumulate(points: [ScanPoint]) {
+    /// originY: 스캔 시작 시 카메라 월드 y — 높이 밴드를 실행 시점이 아닌 스캔 시작 높이 기준으로 만든다.
+    func accumulate(points: [ScanPoint], originY: Float = 0) {
         for sp in points {
             let p = sp.position
             guard let (col, row) = Self.cellIndex(x: p.x, z: p.z) else { continue }
             let idx = row * Self.dimension + col
 
-            let isWall = Self.wallBand.contains(p.y)
-            guard isWall || p.y < Self.floorBelow else { continue }  // 천장
+            let relY = p.y - originY
+            let isWall = Self.wallBand.contains(relY)
+            guard isWall || relY < Self.floorBelow else { continue }  // 천장
             let isNewCell = wallHits[idx] == 0 && floorHits[idx] == 0
-            if isNewCell { occupiedCellCount += 1 }
+            // 관측 면적은 렌더 임계값과 같은 기준으로 집계 — 1회 히트 노이즈 셀이 라벨을 부풀리지 않게
+            let wasVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
             if isWall {
                 if wallHits[idx] < .max { wallHits[idx] += 1 }
             } else {
                 if floorHits[idx] < .max { floorHits[idx] += 1 }
             }
+            let nowVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
+            if !wasVisible && nowVisible { occupiedCellCount += 1 }
             colors[idx] = isNewCell ? sp.color
                 : SIMD3<UInt8>(truncatingIfNeeded: (SIMD3<UInt16>(truncatingIfNeeded: colors[idx]) &* 3 &+ SIMD3<UInt16>(truncatingIfNeeded: sp.color)) / 4)
             totalPoints += 1

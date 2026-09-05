@@ -8,6 +8,9 @@ import SwiftUI
 struct MinimapView: View {
     let snapshot: MinimapSnapshot?
     var visibleRadius: Float? = nil
+    /// 있으면 격자 이미지 대신 정점 색 mesh top-down 렌더를 배경으로 (오버레이 전용).
+    /// 마커·궤적 캔버스의 카메라 중심·반경 매핑이 mesh 직교 카메라와 같아 그대로 정합된다.
+    var meshBackground: ColoredMesh? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -17,9 +20,13 @@ struct MinimapView: View {
 
                 if let snapshot {
                     let (scale, offset) = mapTransform(snapshot, side: side)
-                    if let cgImage = snapshot.image {
+                    if let meshBackground, let visibleRadius, !meshBackground.positions.isEmpty {
+                        MeshTopDownView(mesh: meshBackground,
+                                        cameraXZ: snapshot.cameraPosition,
+                                        visibleRadius: visibleRadius)
+                    } else if let cgImage = snapshot.image {
                         Image(decorative: cgImage, scale: 1)
-                            .interpolation(.none)   // 셀 경계 선명하게
+                            .interpolation(.medium)   // 셀 경계를 부드럽게 — .none은 도트맵처럼 보임 (실기기 피드백)
                             .resizable()
                             .frame(width: side, height: side)
                             .scaleEffect(scale, anchor: .topLeading)
@@ -43,7 +50,7 @@ struct MinimapView: View {
     }
 
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
-    /// visibleRadius가 nil이면 항등 (auto-fit 이미지 그대로).
+    /// visibleRadius가 nil이면 항등 (전체화면 fallback — 팬·줌은 ContentView의 세계 창이 담당).
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
         guard let visibleRadius else { return (1, .zero) }
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))

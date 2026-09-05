@@ -17,17 +17,30 @@ nonisolated struct MinimapSnapshot: @unchecked Sendable {
     let trajectory: [SIMD2<Float>]     // 월드 (x, z) 궤적
     let totalPoints: Int
     let occupiedCellCount: Int
+    /// 이미지를 만든 시점의 격자 버전(totalPoints) — 격자 미변경 시 이미지 재사용 판정용.
+    let gridVersion: Int
 
     /// crop 한 변의 실제 길이(m). View가 "카메라 중심 반경 r" 창을 만들 때 스케일 계산용.
     var cropSideMeters: Float { Float(cropDimension) * OccupancyGrid.cellSize }
 
+    /// 관측 면적(m²) = 관측 셀 수 × 셀 면적. 커버리지 피드백·면적 측정 표시용.
+    var observedAreaM2: Float {
+        Float(occupiedCellCount) * OccupancyGrid.cellSize * OccupancyGrid.cellSize
+    }
+
+    /// 정규화 좌표(0...1, 전체화면 항등 변환 기준) → 월드 (x, z). normalizedPoint의 역변환 — 거리 측정 탭 입력용.
+    func worldPoint(normalized p: CGPoint) -> SIMD2<Float> {
+        let c = SIMD2(Float(p.x) * Float(cropDimension) - 0.5 + Float(cropOriginCol),
+                      Float(p.y) * Float(cropDimension) - 0.5 + Float(cropOriginRow))
+        return OccupancyGrid.worldXZ(continuousCell: c)
+    }
+
     /// 월드 (x, z) → 이미지 정규화 좌표 (0...1). 이미지 밖이면 범위를 벗어난 값 반환.
     /// +0.5: cellIndex는 최근접 반올림이라 셀 중심이 픽셀 중심 — 픽셀 좌상단이 아닌 중심에 맞춘다.
     func normalizedPoint(_ world: SIMD2<Float>) -> CGPoint {
-        let col = world.x / OccupancyGrid.cellSize + Float(OccupancyGrid.dimension / 2)
-        let row = world.y / OccupancyGrid.cellSize + Float(OccupancyGrid.dimension / 2)
-        return CGPoint(x: CGFloat((col - Float(cropOriginCol) + 0.5) / Float(cropDimension)),
-                       y: CGFloat((row - Float(cropOriginRow) + 0.5) / Float(cropDimension)))
+        let c = OccupancyGrid.continuousCell(x: world.x, z: world.y)
+        return CGPoint(x: CGFloat((c.x - Float(cropOriginCol) + 0.5) / Float(cropDimension)),
+                       y: CGFloat((c.y - Float(cropOriginRow) + 0.5) / Float(cropDimension)))
     }
 }
 
@@ -37,11 +50,16 @@ nonisolated enum MinimapRenderer {
 
     /// crop 여백(셀). 맵 가장자리가 화면에 붙지 않게.
     private static let margin = 10
+    /// 매 호출 생성 비용 제거 — 불변 객체.
+    private static let colorSpace = CGColorSpaceCreateDeviceRGB()
 
+    /// previous: 직전 스냅샷 — 격자(totalPoints)와 crop이 그대로면 픽셀 재생성·CGImage 생성을 건너뛰고
+    /// 이미지를 재사용한다 (일시정지·정지 상태에서 10Hz 전량 재렌더 방지, SwiftUI 텍스처 재업로드 방지).
     static func render(grid: OccupancyGrid,
                        cameraPosition: SIMD2<Float>,
                        cameraHeading: Float,
-                       trajectory: [SIMD2<Float>]) -> MinimapSnapshot {
+                       trajectory: [SIMD2<Float>],
+                       previous: MinimapSnapshot? = nil) -> MinimapSnapshot {
         // crop 영역: 관측 셀 + 현재 카메라 위치를 포함하는 정사각형
         var minC = OccupancyGrid.dimension, maxC = 0, minR = OccupancyGrid.dimension, maxR = 0
         if let b = grid.usedBounds {
@@ -56,7 +74,7 @@ nonisolated enum MinimapRenderer {
                                    cropDimension: OccupancyGrid.dimension,
                                    cameraPosition: cameraPosition, cameraHeading: cameraHeading,
                                    trajectory: trajectory,
-                                   totalPoints: 0, occupiedCellCount: 0)
+                                   totalPoints: 0, occupiedCellCount: 0, gridVersion: 0)
         }
 
         // 정사각형화 + 여백, 그리드 경계로 클램프
@@ -66,6 +84,19 @@ nonisolated enum MinimapRenderer {
         var originR = (minR + maxR) / 2 - dim / 2
         originC = max(0, min(originC, OccupancyGrid.dimension - dim))
         originR = max(0, min(originR, OccupancyGrid.dimension - dim))
+
+        // 격자·crop이 직전과 같으면 이미지 재사용 — 픽셀값이 (hits, colors, crop)의 순수 함수라 동일 보장.
+        if let previous, previous.gridVersion == grid.totalPoints,
+           previous.cropOriginCol == originC, previous.cropOriginRow == originR,
+           previous.cropDimension == dim {
+            return MinimapSnapshot(image: previous.image,
+                                   cropOriginCol: originC, cropOriginRow: originR, cropDimension: dim,
+                                   cameraPosition: cameraPosition, cameraHeading: cameraHeading,
+                                   trajectory: trajectory,
+                                   totalPoints: grid.totalPoints,
+                                   occupiedCellCount: grid.occupiedCellCount,
+                                   gridVersion: grid.totalPoints)
+        }
 
         // RGBA 비트맵: 벽 = 카메라 색 그대로, 관측된 바닥 = 카메라 색을 절반 어둡게, 미관측 = 투명
         // ponytail: 벽/바닥 구분을 밝기 차로만 둠. 실기기에서 벽 라인이 안 읽히면 벽 테두리(이웃 셀 검사) 추가.
@@ -98,7 +129,7 @@ nonisolated enum MinimapRenderer {
             guard let provider = CGDataProvider(data: Data(buf) as CFData) else { return nil }
             return CGImage(width: dim, height: dim,
                            bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: dim * 4,
-                           space: CGColorSpaceCreateDeviceRGB(),
+                           space: colorSpace,
                            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),  // straight alpha — 픽셀값이 비승산
                            provider: provider, decode: nil,
                            shouldInterpolate: false, intent: .defaultIntent)
@@ -109,6 +140,7 @@ nonisolated enum MinimapRenderer {
                                cameraPosition: cameraPosition, cameraHeading: cameraHeading,
                                trajectory: trajectory,
                                totalPoints: grid.totalPoints,
-                               occupiedCellCount: grid.occupiedCellCount)
+                               occupiedCellCount: grid.occupiedCellCount,
+                               gridVersion: grid.totalPoints)
     }
 }

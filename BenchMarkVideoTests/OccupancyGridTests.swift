@@ -1,6 +1,6 @@
 import XCTest
 import simd
-@testable import Threei_Assignment
+@testable import BenchMarkVideo
 
 final class OccupancyGridTests: XCTestCase {
 
@@ -30,14 +30,18 @@ final class OccupancyGridTests: XCTestCase {
         XCTAssertEqual(grid.wallHits[idx], 1)
         XCTAssertEqual(grid.floorHits[idx], 1)
         XCTAssertEqual(grid.totalPoints, 2)
-        XCTAssertEqual(grid.occupiedCellCount, 1)
+        // 면적 집계는 렌더 임계값 기준 — 1회 히트는 아직 미관측 (노이즈 셀이 라벨을 부풀리지 않게)
+        XCTAssertEqual(grid.occupiedCellCount, 0)
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0, OccupancyGrid.floorBelow - 0.1, 0))])
+        XCTAssertEqual(grid.occupiedCellCount, 1)   // floorHits 2 = 임계값 도달
         XCTAssertEqual(grid.usedBounds?.minCol, half)
         XCTAssertEqual(grid.usedBounds?.maxRow, half)
     }
 
     func testUsedBoundsGrowAndResetClears() {
         let grid = OccupancyGrid()
-        grid.accumulate(points: [ScanPoint(position: SIMD3(0, 0, 0)), ScanPoint(position: SIMD3(1, 0, -1))])
+        let wall = [ScanPoint(position: SIMD3(0, 0, 0)), ScanPoint(position: SIMD3(1, 0, -1))]
+        grid.accumulate(points: wall + wall + wall)   // 벽 임계값(3) 충족 — 두 셀 관측
         XCTAssertEqual(grid.usedBounds?.maxCol, half + 20)
         XCTAssertEqual(grid.usedBounds?.minRow, half - 20)
         XCTAssertEqual(grid.occupiedCellCount, 2)
@@ -45,6 +49,20 @@ final class OccupancyGridTests: XCTestCase {
         XCTAssertNil(grid.usedBounds)
         XCTAssertEqual(grid.totalPoints, 0)
         XCTAssertEqual(grid.wallHits.reduce(0, +), 0)
+    }
+
+    func testAccumulateOriginYRebasesHeightBands() {
+        let grid = OccupancyGrid()
+        let idx = half * OccupancyGrid.dimension + half
+        // 책상(0.7m)에서 실행 후 1.5m로 들고 스캔 시작: originY = +0.8.
+        // 바닥 점(월드 y = -0.7)은 상대 -1.5 → 벽이 아니라 바닥으로 분류돼야 한다.
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0, -0.7, 0))], originY: 0.8)
+        XCTAssertEqual(grid.wallHits[idx], 0)
+        XCTAssertEqual(grid.floorHits[idx], 1)
+        // originY 없이는 같은 점이 벽 밴드에 들어간다 (기존 버그 재현 고정)
+        let unrebased = OccupancyGrid()
+        unrebased.accumulate(points: [ScanPoint(position: SIMD3(0, -0.7, 0))])
+        XCTAssertEqual(unrebased.wallHits[idx], 1)
     }
 
     func testColorFirstHitSetsThenEMA() {
