@@ -22,7 +22,7 @@
 | `Threei_AssignmentTests/*` (16건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 6). 케이스 선정은 좌표 규약 문서 기준 |
 | `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 명세 대응 절 | LLM 생성 | 세션 2에서 명세 원문을 그대로 제공 → 요구사항 번호·산출물 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 최종결과물 비디오는 프레임을 추출해 LLM이 직접 비교 |
 | 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
-| 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | LLM 초안 + 사람 | 다른 프로젝트의 Agent 작업 지원 체계를 순수 Swift 단일 타깃 규모에 맞게 축소. 구조는 사람이 지정, 본문은 LLM |
+| 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | 사람 설계 + LLM 본문 | 사람이 이 프로젝트용으로 구축한 Agent 작업 지원 체계 — 도구 중립 라우터(`AGENTS.md`, `CLAUDE.md`는 symlink), 사실 하나당 소유 문서 하나 원칙, 작업 유형별 skill, grep 기반 구조·문서 계약 검사. 구조와 소유권 규칙은 사람이 지정, 본문 작성은 LLM |
 | mesh 표시 문법("mesh 보임 = 기록 중")과 "주변 인식 중…" 배지 (`ScanEvent.meshReady`, `ContentView` 배지) | 사람 방법론 + LLM 구현 | 사람이 "스캔-메시 로딩 간극에 로딩 표시" 방법론 제시, LLM이 고정 타이머 대신 첫 `ARMeshAnchor` 신호 기반으로 다듬음 (사례 13) |
 | 실기기 검증 (46항목, 화면 녹화 22편) | 사람 촬영·관찰 + LLM 판독 | 사람: 시나리오 수행·촬영·이상 관찰 제보("미니맵이 갈피를 못 잡아"). LLM: 촬영 시나리오 설계, ffmpeg 프레임 추출 판독, 판정·문서 기입 (사례 14·15) |
 | 성능 자가 계측 (`FPSMonitor`, perf 로그)과 `perf-baseline` 비교 브랜치 | LLM 생성 | Instruments 실패 후 대체 설계 (사례 16). 측정 실행·콘솔 로그 제공은 사람 |
@@ -49,9 +49,9 @@
 - **재배치 중 발견한 LLM 코드 위반**: `ARPreviewView`(View)가 `ARSessionManager`(Model)의 `attach(to:)`를 직접 호출하고 있었다. View → ViewModel → Model 단방향을 깨는 구조라 `ScanViewModel.attach(session:)` 중계 메서드를 두고 View는 `ARSession` 콜백만 받도록 수정. `ScanViewModel`의 불필요한 `import SwiftUI`도 제거.
 - **재발 방지**: `scripts/check-structure.sh`가 View의 Model 객체 참조, Model의 UI 프레임워크 import, `nonisolated` 누락을 grep으로 검사. 같은 스크립트가 이 리포트의 옛 경로(`Scan/…`, `Minimap/…`)도 잡아냈다.
 
-### 사례 5 — 참조 프로젝트 잔재가 문서에 섞임 (내용 수정)
-- **무엇**: 문서 체계를 다른 프론트엔드 mono-repo의 Agent 체계에서 착안해 옮기면서, LLM이 `docs/AI_AGENT_HARNESS.md`에 "참조 프로젝트 대비 뺀 것: workspace별 AGENTS, feature README, 브리지 계약 인덱스…" 같은 비교 문장과 참조 프로젝트 이름을 남겼다.
-- **어떻게 알았나**: 사람이 "순수 Swift 프로젝트라 그 프로젝트에서만 쓰는 내용은 제거하라"고 지적.
+### 사례 5 — 무관한 웹 스택 용어가 문서 초안에 섞임 (내용 수정)
+- **무엇**: Agent 작업 지원 체계 문서 초안을 쓰면서 LLM이 `docs/AI_AGENT_HARNESS.md`에 이 저장소와 무관한 웹 스택 개념(workspace별 AGENTS, feature README, 브리지 계약 인덱스 등)을 비교 문장으로 남겼다 — 순수 Swift 단일 타깃 프로젝트에는 존재하지 않는 구조들이다.
+- **어떻게 알았나**: 사람이 "순수 Swift 프로젝트라 여기서 안 쓰는 내용은 제거하라"고 지적.
 - **수정**: 전 문서 grep으로 mono-repo·React·npm·브리지 등 용어를 전수 검색해 잔재 3곳 제거. 나머지 문서는 처음부터 Swift 전용으로 작성돼 0건.
 
 ### 사례 6 — 단위 테스트를 "도입 조건부"로 미룬 정책 기각 (정책 수정, 사람 결정)
