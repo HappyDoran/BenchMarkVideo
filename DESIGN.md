@@ -50,7 +50,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 24건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스).
+**검증 상태.** 컴파일·구조 검사·단위 테스트 28건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스).
 
 ### 1.2 UI 프레임워크: SwiftUI
 
