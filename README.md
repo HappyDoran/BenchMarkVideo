@@ -78,12 +78,12 @@ open Threei_Assignment.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 16건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·색 EMA·crop |
-| auto-fit, 이동 궤적 | 🔶 위 R2 표 |
+| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 24건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화 |
+| auto-fit, 이동 궤적 | ✅ 위 R2 표 |
 | 성능 최적화 전후 비교 (+2) | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
 | 거리·면적 측정 (+2) | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
 | 스캔 결과 내보내기 (+2) | ✅ 실기기 검증 — 공유 시트(iOS가 3D 항목 인식)·AirDrop 전송, .ply 검판(vertex 정합·격자 정렬·색) |
-| 3D 재구성 뷰어, 면적 측정, 드리프트 보정 | ❌ (드리프트는 실측상 보정 불요 — 방 규모에서 셀 이하) |
+| 3D 재구성 뷰어, 드리프트 보정 | ❌ (드리프트는 실측상 보정 불요 — 방 규모에서 셀 이하) |
 
 ## 아키텍처
 
@@ -134,7 +134,7 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ```bash
-# 1. 단위 테스트 (Model 순수 함수, 시뮬레이터) — 16건
+# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 24건
 xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
