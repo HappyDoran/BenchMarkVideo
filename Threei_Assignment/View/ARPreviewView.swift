@@ -53,7 +53,7 @@ final class FPSMonitor {
     private var windowStart: CFTimeInterval = 0
     private var frameCount = 0
     private var worstGap: CFTimeInterval = 0
-    private let log = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
+    private let log = Logger(subsystem: "com.doran.threei.assignment", category: "perf")
 
     func start() {
         guard link == nil else { return }

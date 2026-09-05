@@ -66,7 +66,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | 금지 | 이유 | 허용 예외 |
 | --- | --- | --- |
 | `Model/`에서 `SwiftUI`·`UIKit`·`Observation` import | 파이프라인이 UI 프레임워크와 MainActor에 묶여 큐 격리와 단위 테스트 가능성이 깨진다 | 없음 |
-| `View/`가 `ARSessionManager`·`OccupancyGrid`·`MinimapRenderer`·`DepthFrameProcessor`를 직접 참조 | ViewModel이 상태 허브가 아니게 되고 큐 hop 규약을 우회한다 | `MinimapSnapshot`·`ScanEvent` 같은 불변 값 타입 소비 |
+| `View/`가 `ARSessionManager`·`OccupancyGrid`·`MinimapRenderer`·`DepthFrameProcessor`를 직접 참조 | ViewModel이 상태 허브가 아니게 되고 큐 hop 규약을 우회한다 | `MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud` 같은 불변 값 타입 소비 |
 | `Model/` 최상위 타입에 `nonisolated` 누락 | 기본 격리가 MainActor라 delegate 큐에서 접근하는 코드가 컴파일러 격리 검사와 충돌한다 | 없음 |
 | delegate 콜백 밖으로 `ARFrame` 또는 그 버퍼 참조를 넘김 | ARKit 프레임 풀 고갈로 프레임 드롭 | 없음 — 필요한 값은 콜백 안에서 복사 |
 | `scan.processing` 밖에서 grid·trajectory·`isAccumulating` 접근 | data race. `@unchecked Sendable`은 이 규약을 전제로만 안전하다 | 없음 |

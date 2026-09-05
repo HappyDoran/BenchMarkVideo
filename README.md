@@ -25,7 +25,7 @@ open Threei_Assignment.xcodeproj
 1. Xcode에서 scheme을 선택한다 (공유 scheme 2개, 저장소에 포함).
    - `Threei_Assignment-Production` — 실사용·성능 확인용. Release, 디버거 미부착, GPU Frame Capture Disabled, Metal API Validation off. 카메라 표시까지의 시간이 실사용 기준이다.
    - `Threei_Assignment-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
-2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `io.tenkm.doran.lidarscan`, 필요하면 변경).
+2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.threei.assignment`, 필요하면 변경).
 3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
 4. 첫 실행 시 카메라 권한을 허용한다. 우하단 "스캔 시작"을 누르면 좌하단 미니맵이 채워진다.
 

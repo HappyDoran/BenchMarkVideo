@@ -63,7 +63,7 @@ check_absent() { # dir pattern message
   grep -lE "$2" "$SRC/$1"/*.swift 2>/dev/null | while read -r f; do err "$3: $f"; done
 }
 VIEW_TYPES='ContentView|MinimapView|ARPreviewView'
-MODEL_OBJECTS='ARSessionManager|OccupancyGrid|MinimapRenderer|DepthFrameProcessor'
+MODEL_OBJECTS='ARSessionManager|OccupancyGrid|MinimapRenderer|DepthFrameProcessor|VoxelColorStore|GridExporter'
 check_absent Model     '^import (SwiftUI|UIKit|Observation)$'   "Model에서 UI 프레임워크 import"
 check_absent Model     "\b(ScanViewModel|$VIEW_TYPES)\b"         "Model이 상위 계층 참조"
 check_absent ViewModel '^import (SwiftUI|UIKit|RealityKit)$'    "ViewModel에서 UI 프레임워크 import"

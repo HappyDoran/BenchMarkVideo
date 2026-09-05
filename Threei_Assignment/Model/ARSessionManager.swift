@@ -111,9 +111,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var debugCallbackMs: [Double] = []
     /// DESIGN.md 10절: 콜백 처리 시간을 Instruments Points of Interest로 측정.
     private let signposter = OSSignposter(
-        logHandle: OSLog(subsystem: "io.tenkm.doran.lidarscan", category: .pointsOfInterest))
+        logHandle: OSLog(subsystem: "com.doran.threei.assignment", category: .pointsOfInterest))
     /// perf 지표 — Logger라서 Xcode 미부착이어도 `log collect --device`로 사후 수집 가능.
-    private let perfLog = Logger(subsystem: "io.tenkm.doran.lidarscan", category: "perf")
+    private let perfLog = Logger(subsystem: "com.doran.threei.assignment", category: "perf")
 
     /// 현재 프로세스 물리 메모리 사용량(MB). 실패 시 -1.
     private static func footprintMB() -> Double {

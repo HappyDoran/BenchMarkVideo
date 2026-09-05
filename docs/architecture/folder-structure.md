@@ -71,6 +71,6 @@ last_verified: 2026-09-05
 
 ## 현재 예외
 
-- `MinimapSnapshot`과 `ScanEvent`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
+- `MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
 - `ARPreviewView`는 `ARSession` 타입을 콜백 시그니처에 쓰기 위해 `ARKit`을 import한다. Model 객체를 참조하지는 않는다.
 - 테스트는 Model 계층만 대상이다. ViewModel·View 테스트는 없고, 도입 조건은 `.codex/skills/test-policy/SKILL.md`.
