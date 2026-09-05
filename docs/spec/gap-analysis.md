@@ -41,7 +41,7 @@ last_verified: 2026-09-05
 | --- | --- | --- | --- | --- |
 | 1 | ~~성능 최적화 전후 비교~~ | +2 | ✅ 완료 | `perf-baseline` 브랜치 실측 — 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 (`DESIGN.md` 10절) |
 | 2 | 미니맵 거리 측정 | +2 | 낮음 | 전체화면에서 두 점 탭 → 셀 거리 × `OccupancyGrid.cellSize`. 명세 7-1이 권한 "알려진 길이의 벽 검증" 도구로도 쓰여 이중 효용 |
-| 3 | 미니맵 팬·줌 | R2 선택 (별도 점수 없음) | 낮음 | 전체화면에 `MagnifyGesture`·`DragGesture`로 `MinimapSnapshot.normalizedPoint`에 스케일·오프셋 추가 (`DESIGN.md` 13절 5번) |
+| 3 | 미니맵 팬·줌 | R2 선택 (별도 점수 없음) | 낮음 | 전체화면에 `MagnifyGesture`·`DragGesture`로 `MinimapSnapshot.normalizedPoint`에 스케일·오프셋 추가 (`DESIGN.md` 당시 13절 5번 — 현 14절) |
 | 4 | 내보내기 | +2 | 낮음 | 벽 셀을 점으로 쓴 `.ply` 텍스트 + `ShareLink`. 격자 데이터가 이미 있어 수십 줄 |
 | 5 | 드리프트 대응 시도 | +2 | 중간 | `.limited(.relocalizing)` 이벤트를 이미 받는다. 그 구간 누적 차단(이미 됨) + 재로컬라이즈 후 격자 리셋 옵션이면 "시도"로 인정 |
 | 6 | 3D 재구성 뷰어 | +4 | 높음 | 비추천. 필수 검증이 먼저 |

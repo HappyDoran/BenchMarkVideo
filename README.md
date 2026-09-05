@@ -97,10 +97,14 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
                           OccupancyGrid (5cm cell, 고정 400×400, floor/wall hit)    [Model]
                                      ▼
                           MinimapRenderer (used-bounds crop → MinimapSnapshot)      [Model]
-                                     ▼  onSnapshot / onEvent (Sendable)
+                                     │
+      VoxelColorStore (월드 복셀 색) ─┤─ GridExporter (.ply 점군)                    [Model]
+      + ARMeshAnchor → MeshBuilder (정점 색 ColoredMesh)                            [Model]
+                                     ▼  onSnapshot / onEvent / mesh·cloud (Sendable)
                           ScanViewModel (@Observable, MainActor)                    [ViewModel]
                                      ▼
-                          ContentView · MinimapView · ARPreviewView                 [View]
+        ContentView · MinimapView · ARPreviewView                                   [View]
+        MeshTopDownView (미니맵 배경) · PointCloudViewerView (2D/3D 뷰어·측정)       [View]
 ```
 
 Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다. 계층 경계가 곧 스레드 경계라서 MVVM을 택했다 — 파이프라인 전 과정, 좌표 변환, 바닥·천장 필터, 격자 해상도 근거, 스레딩, 성능은 `DESIGN.md`. 좌표계·동시성 규약은 `TECH_RULES.md`. 파일 배치는 `docs/architecture/folder-structure.md`.
