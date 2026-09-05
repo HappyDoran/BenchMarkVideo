@@ -39,8 +39,8 @@ open Threei_Assignment.xcodeproj
 
 | 항목 | 상태 | 구현 |
 | --- | --- | --- |
-| R1-1 실시간 스캔, 화면 반영 | ✅ | RealityKit `sceneReconstruction` mesh 와이어프레임 (`View/ARPreviewView.swift`). 재구성은 첫 프레임부터 예열, 표시는 스캔 중에만("mesh 보임 = 기록 중"). mesh 준비 전엔 "주변 인식 중…" 배지 |
-| R1-2 시작 / 일시정지 / 재개 / 초기화 | ✅ | `ViewModel/ScanViewModel.swift`. 일시정지는 세션 유지·격자 누적만 중단(궤적·마커는 계속, mesh 표시는 숨김), 초기화는 격자·궤적·트래킹 리셋 |
+| R1-1 실시간 스캔, 화면 반영 | ✅ | RealityKit `sceneReconstruction` mesh 와이어프레임 (`View/ARPreviewView.swift`). 표시는 스캔 중에만, 첫 시작 시 재구성 리셋 — 와이어프레임 = 이번 스캔이 훑은 곳("체크무늬 = 스캔 커버리지"). 준비 전엔 "주변 인식 중…" 배지 |
+| R1-2 시작 / 일시정지 / 재개 / 초기화 | ✅ | `ViewModel/ScanViewModel.swift`. 일시정지는 세션 유지·격자 누적만 중단(궤적·마커는 계속, mesh 표시는 숨김), 초기화는 격자·궤적·트래킹 리셋. 전체화면 뷰어를 열면 자동 일시정지·닫으면 복귀(수동 일시정지는 존중) |
 | R1-3 상태 피드백 | ✅ | 상태 배지(대기/스캔 중/일시정지), 누적 포인트 수, 관측 셀 수, 트래킹 경고, mesh 준비 배지 |
 | R1-4 트래킹 실패 처리 | ✅ | `cameraDidChangeTrackingState` 5종 메시지, 세션 중단 배지, 세션 실패 안내 화면. 앱은 계속 동작 |
 

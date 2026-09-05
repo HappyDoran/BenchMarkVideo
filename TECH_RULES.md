@@ -1,7 +1,7 @@
 ---
 title: Threei_Assignment 기술 스택과 구현 규칙
 kind: rule
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
 # 기술 스택 및 구현 규칙
@@ -13,6 +13,7 @@ last_verified: 2026-09-04
 - Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `Threei_Assignment`
 - ARKit (`ARWorldTrackingConfiguration`, `smoothedSceneDepth`, `sceneReconstruction = .mesh`)
 - RealityKit `ARView` — 카메라 프리뷰와 스캔 mesh 시각화 (`.showSceneUnderstanding`)
+- SceneKit `SCNView` — 스캔 결과 뷰어(정점 색 mesh·점군, 회전·줌)와 미니맵 mesh top-down 렌더
 - Observation (`@Observable`) — ViewModel 상태 발행
 - CoreGraphics — 미니맵 비트맵 생성. simd — 좌표 연산
 - XCTest — `Threei_AssignmentTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
