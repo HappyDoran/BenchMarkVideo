@@ -54,21 +54,23 @@ struct ContentView: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
 
+            // 레이아웃 문법: 정보(상태·경고)는 상단 중앙, 조작(버튼)은 우하단 엄지 범위,
+            // 미니맵은 좌하단 — 스캔 시선(중앙~상단)을 가리지 않는다 (최종결과물 영상과 같은 배치).
             VStack {
-                HStack(alignment: .top) {
-                    statusBar
-                    Spacer()
+                statusBar
+                Spacer()
+                HStack(alignment: .bottom) {
                     if !isMinimapExpanded {
-                        // 반경 3m — 게임 미니맵처럼 주변이 크게 보이게 (사용자 결정, 6 → 3).
-                        // 배경은 실시간 mesh top-down(질감), 마커·궤적은 기존 캔버스. 넓은 맥락은 전체화면 담당.
-                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 3,
+                        // 반경 2m — 게임 미니맵식 근접 뷰 (사용자 결정 3 → 2).
+                        // 배경은 실시간 mesh top-down, 마커·궤적은 캔버스. 넓은 맥락은 전체화면 담당.
+                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 2,
                                     meshBackground: viewModel.liveMesh)
-                            .frame(width: 170)
+                            .frame(width: 160)
                             .onTapGesture { isMinimapExpanded = true }
                     }
+                    Spacer()
+                    controls
                 }
-                Spacer()
-                controls
             }
             .padding()
 
@@ -83,8 +85,9 @@ struct ContentView: View {
         }
     }
 
+    /// 상단 중앙 정보 스택 — 상태 한 줄 + 경고·안내 배지. 미니맵과 폭 경쟁 없음.
     private var statusBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .center, spacing: 6) {
             HStack(spacing: 8) {
                 Circle()
                     .fill(stateBadge.color)
@@ -96,11 +99,10 @@ struct ContentView: View {
                         .font(.footnote.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.55)   // 미니맵(170pt)과 폭 경쟁 시 줄바꿈 대신 축소
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
             .background(.ultraThinMaterial, in: Capsule())
 
             // 초기화 직후 스캔 시작 → 첫 mesh 앵커까지 약 1초 공백에 이름을 붙임
@@ -146,19 +148,20 @@ struct ContentView: View {
         }
     }
 
+    /// 우하단 세로 스택 — 오른손 엄지 도달 범위. 주 동작이 아래(가까운 쪽), 초기화는 위.
     private var controls: some View {
-        HStack(spacing: 16) {
+        VStack(alignment: .trailing, spacing: 12) {
             switch viewModel.state {
             case .ready:
                 controlButton("스캔 시작", icon: "record.circle", prominent: true) {
                     viewModel.start()
                 }
             case .scanning:
+                resetButton
                 controlButton("일시정지", icon: "pause.fill") { viewModel.pause() }
-                resetButton
             case .paused:
-                controlButton("재개", icon: "play.fill", prominent: true) { viewModel.start() }
                 resetButton
+                controlButton("재개", icon: "play.fill", prominent: true) { viewModel.start() }
             }
         }
     }
