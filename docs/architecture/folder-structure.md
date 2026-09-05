@@ -37,7 +37,8 @@ last_verified: 2026-09-05
 │   ├── MinimapRendererTests.swift        # crop 크기, 정규화 좌표·역변환, 이미지 재사용
 │   ├── ScanViewModelTests.swift          # 이벤트 → 배지 상태, retry·reset 전이
 │   ├── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색·점군 파생
-│   └── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
+│   ├── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
+│   └── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
 └── Threei_Assignment/
     ├── App/
     │   └── Threei_AssignmentApp.swift    # @main. ContentView 진입

@@ -8,6 +8,9 @@ nonisolated struct ColoredMesh: Sendable {
     var indices: [Int32] = []
     /// 빌드 순번 — 정점 수가 같아도 색·기하가 갱신됐는지 뷰가 판별하는 기준 (ARSessionManager가 부여).
     var version: Int = 0
+
+    /// 측정 평면용 바닥 높이 (밀도 기반 — MeshBuilder.estimatedFloorY).
+    var estimatedFloorY: Float { MeshBuilder.estimatedFloorY(of: positions) }
 }
 
 /// 월드 복셀 → 카메라 색 저장소. 깊이 점(ScanPoint) 스트림에서 누적한다.
@@ -69,6 +72,22 @@ nonisolated enum MeshBuilder {
 
     /// 색 미관측 정점의 대체색 (중간 회색).
     static let fallbackColor = SIMD3<UInt8>(128, 128, 128)
+
+    /// 바닥 높이 추정 — 정점 y 히스토그램(10cm)에서 아래부터 올라가며 충분히 밀집한 첫 버킷.
+    /// 단순 최저값은 유리 반사·노이즈가 실제 바닥보다 수 m 아래 허상 정점을 만들면 그리로 끌려가
+    /// 측정 평면·마커가 지하에 깔린다 — 바닥 슬래브는 정점이 밀집하므로 밀도 임계로 걸러낸다.
+    /// View는 값 타입 프로퍼티(ColoredMesh/GridPointCloud.estimatedFloorY)로 소비한다.
+    static func estimatedFloorY(of positions: [SIMD3<Float>]) -> Float {
+        guard let minY = positions.map(\.y).min() else { return 0 }
+        let bucketSize: Float = 0.1
+        var counts: [Int: Int] = [:]
+        for p in positions {
+            counts[Int(((p.y - minY) / bucketSize).rounded(.down)), default: 0] += 1
+        }
+        let threshold = max((counts.values.max() ?? 0) / 5, 50)
+        let floorBucket = counts.keys.sorted().first { counts[$0]! >= threshold } ?? 0
+        return minY + (Float(floorBucket) + 0.5) * bucketSize
+    }
 
     static func coloredMesh(anchors: [ARMeshAnchor], colors store: VoxelColorStore) -> ColoredMesh {
         var mesh = ColoredMesh()

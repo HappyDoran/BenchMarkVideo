@@ -77,14 +77,7 @@ final class ScanViewModel {
     private func startMeshRefresh() {
         meshRefreshTimer?.invalidate()
         meshRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.sessionManager.exportColoredMesh { mesh in
-                    guard let mesh else { return }   // 미변경·스캔 전 — 기존 값 유지
-                    DispatchQueue.main.async {
-                        MainActor.assumeIsolated { self?.liveMesh = mesh }
-                    }
-                }
-            }
+            MainActor.assumeIsolated { self?.refreshLiveMesh() }   // 미변경·스캔 전엔 내부에서 스킵
         }
     }
 
@@ -93,6 +86,17 @@ final class ScanViewModel {
     func start() {
         sessionManager.startAccumulating()
         state = .scanning
+        refreshLiveMesh()   // 다음 타이머 틱(최대 1.5초)을 기다리지 않고 즉시 1회 빌드 — mesh 표시 지연 제거
+    }
+
+    /// liveMesh 1회 갱신. 같은 직렬 큐라 startAccumulating의 hasStarted 설정 뒤에 실행된다.
+    private func refreshLiveMesh() {
+        sessionManager.exportColoredMesh { [weak self] mesh in
+            guard let mesh else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.liveMesh = mesh }
+            }
+        }
     }
 
     func pause() {

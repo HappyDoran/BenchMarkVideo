@@ -102,9 +102,9 @@ struct PointCloudViewerView: UIViewRepresentable {
 
         // 측정 탭 대상: 보이지 않는 바닥 평면. 점·삼각형 히트테스트 대신
         // 바닥 투영 측정으로 통일 — 2D 격자 측정과 같은 수평 거리 시맨틱.
-        // 높이는 실제 데이터의 최저 y — 월드 y=0은 앱 실행 시 카메라 높이라 실제 바닥은 그보다
-        // 약 1.2~1.5m 아래에 있고, y=0에 두면 사선 시차로 측정이 어긋나고 마커가 공중에 뜬다.
-        let floorY = (mesh?.positions ?? cloud.positions).map(\.y).min() ?? 0
+        // 높이는 밀도 기반 바닥 추정 — 월드 y=0(실행 시 카메라 높이)은 공중이고,
+        // 단순 최저 y는 유리 반사 허상 정점에 끌려 지하로 꺼진다 (둘 다 실기기에서 오측정 재현됨).
+        let floorY = mesh?.estimatedFloorY ?? cloud.estimatedFloorY
         let floor = SCNNode(geometry: SCNPlane(width: 100, height: 100))
         floor.eulerAngles.x = -.pi / 2
         floor.position.y = floorY

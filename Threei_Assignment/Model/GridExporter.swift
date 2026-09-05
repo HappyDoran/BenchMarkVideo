@@ -5,6 +5,9 @@ import simd
 nonisolated struct GridPointCloud: Sendable {
     var positions: [SIMD3<Float>] = []
     var colors: [SIMD3<UInt8>] = []
+
+    /// 측정 평면용 바닥 높이 (밀도 기반 — MeshBuilder.estimatedFloorY).
+    var estimatedFloorY: Float { MeshBuilder.estimatedFloorY(of: positions) }
 }
 
 /// OccupancyGrid → 점군 / ASCII .ply 텍스트. 순수 함수 — 단위 테스트 대상.
