@@ -108,6 +108,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var diagnosticWindow = ScanDiagnosticWindow()
     private var diagnosticGeneration = 0
     private var diagnosticPeakMB = -1.0
+    private var diagnosticP50 = 0.0
+    private var diagnosticP95 = 0.0
     private var debugFrameCount = 0
     /// 스로틀 통과 프레임 수 — perf 로그 주기용.
     private var debugProcessedCount = 0
@@ -275,6 +277,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         let diagnosticBeforePoints = grid.totalPoints
         var diagnosticGate = "대기"
         var diagnosticAllowed = false
+        var diagnosticDepthSource = "없음"
         defer {
             signposter.endInterval("frameCallback", signpostState)
             let now = ProcessInfo.processInfo.systemUptime
@@ -296,6 +299,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 value.acceptedPoints = grid.totalPoints - diagnosticBeforePoints
                 value.callbackMeanMs = window.mean
                 value.callbackMaxMs = window.max
+                value.callbackP50Ms = diagnosticP50
+                value.callbackP95Ms = diagnosticP95
+                value.totalReceivedFrames = debugFrameCount
+                value.totalDepthFrames = debugProcessedCount
+                value.depthSource = diagnosticDepthSource
                 value.continuousSeconds = diagnosticWindow.continuousSeconds
                 value.longestSeconds = diagnosticWindow.longestSeconds
                 value.gate = diagnosticGate
@@ -353,6 +361,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                 #if SCAN_DIAGNOSTICS
                 diagnosticAllowed = true
                 diagnosticGate = "누적 허용"
+                diagnosticDepthSource = frame.smoothedSceneDepth != nil ? "smoothed" : "raw"
                 #endif
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depth.depthMap,
@@ -375,6 +384,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     let p50 = sorted[sorted.count / 2]
                     let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
                     let maxMs = sorted.last ?? 0
+                    diagnosticP50 = p50
+                    diagnosticP95 = p95
                     perfLog.info("""
                         n=\(self.debugProcessedCount) points/frame=\(points.count) \
                         cb(3s) p50=\(String(format: "%.2f", p50))ms \

@@ -13,6 +13,12 @@ nonisolated struct ScanDiagnostics: Sendable {
     var acceptedPoints = 0
     var callbackMeanMs = 0.0
     var callbackMaxMs = 0.0
+    /// 약 3초(깊이 처리 30프레임) 창 백분위. perf 로그와 같은 값, 창이 닫힐 때만 갱신.
+    var callbackP50Ms = 0.0
+    var callbackP95Ms = 0.0
+    var totalReceivedFrames = 0
+    var totalDepthFrames = 0
+    var depthSource = "없음"
     var continuousSeconds = 0.0
     var longestSeconds = 0.0
     var gate = "프레임 대기"

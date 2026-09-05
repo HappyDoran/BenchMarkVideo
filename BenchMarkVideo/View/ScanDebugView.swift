@@ -42,13 +42,16 @@ struct ScanDebugView: View {
                             Text("mesh 원본 프레임 \(age(viewModel.liveMesh?.diagnosticSourceTimestamp ?? 0, now)) · 세대 \(viewModel.liveMesh.map { String($0.diagnosticGeneration) } ?? "—")")
                             Text("누적 \(viewModel.snapshot?.totalPoints ?? 0)점 / 관측 \(viewModel.snapshot?.occupiedCellCount ?? 0)셀")
                             Text("최근 처리 프레임: 유효 \(d.sampledPoints)점 → 격자 \(d.acceptedPoints)점")
+                            Text("깊이 \(d.depthSource) · 처리 프레임 시각 \(age(d.frameTimestamp, now))")
                             Text(String(format: "연속 누적 허용 %.1fs · 최장 %.1fs", d.continuousSeconds, d.longestSeconds))
                         } else if page == 1 {
                             let fps = FPSMonitor.shared
                             Text(String(format: "DisplayLink %.1fHz / 최대 간격 %.1fms", fps.average, fps.maximumGapMs))
                             Text("DisplayLink 측정 \(age(fps.measuredAt, now)) · 3초 창")
                             Text(String(format: "콜백 평균 %.1f / 최대 %.1fms", d.callbackMeanMs, d.callbackMaxMs))
+                            Text(String(format: "콜백 3초 창 p50 %.1f / p95 %.1fms", d.callbackP50Ms, d.callbackP95Ms))
                             Text("약 0.5초 창 수신 \(d.receivedFrames) / 처리 \(d.processedFrames)프레임")
+                            Text("누적 수신 \(d.totalReceivedFrames) / 깊이 처리 \(d.totalDepthFrames)프레임")
                             Text(String(format: "최근 mesh CPU 빌드 %.1fms", viewModel.liveMesh?.diagnosticBuildMs ?? 0))
                             Text(d.memoryMB >= 0 ? String(format: "메모리 %.1f / 앱 실행 피크 %.1fMB", d.memoryMB, d.peakMemoryMB) : "메모리 측정 대기/실패")
                             Text("앵커 \(d.anchors) · 정점 \(viewModel.liveMesh?.positions.count ?? 0) · 복셀 항목 \(d.voxelEntries)")
@@ -57,7 +60,7 @@ struct ScanDebugView: View {
                             Text(String(format: "월드 x %.2f / y %.2f / z %.2fm", d.position.x, d.position.y, d.position.z))
                             Text(String(format: "방향 %.1f° · 위 = 월드 −z", (viewModel.snapshot?.cameraHeading ?? 0) * 180 / .pi))
                             Text(d.originY.map { String(format: "시작 y %.2fm · 현재 상대 y %.2fm", $0, d.position.y - $0) } ?? "시작 높이 미확정")
-                            ForEach(Array(viewModel.diagnosticEvents.suffix(4).enumerated()), id: \.offset) { _, event in
+                            ForEach(Array(viewModel.diagnosticEvents.enumerated()), id: \.offset) { _, event in
                                 Text(event).lineLimit(2)
                             }
                         }
