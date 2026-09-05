@@ -16,6 +16,10 @@ struct ContentView: View {
     @State private var baseRadius: Float?
     /// 전체화면 뷰어 모드 — 2D 미니맵 / 3D 점군. 측정 상태(measurePoints)는 두 모드가 공유.
     @State private var mapViewMode: MapViewMode = .map2D
+    /// 전체화면을 열며 자동 일시정지했는가 — 닫을 때 이전 상태(스캔 중)로만 복귀.
+    @State private var resumeAfterExpand = false
+    /// 3D 진입 시점의 mesh 고정 — 보는 중 재빌드로 카메라 리셋·기하 교체(공간 뒤틀림)가 없게.
+    @State private var frozenMesh: ColoredMesh?
 
     enum MapViewMode: String, CaseIterable {
         case map2D = "2D"
@@ -66,7 +70,7 @@ struct ContentView: View {
                         MinimapView(snapshot: viewModel.snapshot, visibleRadius: 2,
                                     meshBackground: viewModel.liveMesh)
                             .frame(width: 160)
-                            .onTapGesture { isMinimapExpanded = true }
+                            .onTapGesture { openExpandedMinimap() }
                     }
                     Spacer()
                     controls
@@ -241,8 +245,8 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                 } else if let cloud = viewModel.pointCloud {
                     // 2D와 같은 정사각 프레임 — 모드 전환 시 피커·버튼 위치가 흔들리지 않는다.
-                    // mesh는 liveMesh(주기 갱신) 공용 — 별도 export 없음.
-                    PointCloudViewerView(cloud: cloud, mesh: viewModel.liveMesh,
+                    // mesh는 3D 진입 시점 고정본 — 보는 중 교체되면 카메라 리셋·공간 뒤틀림.
+                    PointCloudViewerView(cloud: cloud, mesh: frozenMesh ?? viewModel.liveMesh,
                                          measurePoints: $measurePoints)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .aspectRatio(1, contentMode: .fit)
@@ -287,7 +291,10 @@ struct ContentView: View {
         // 첫 스냅샷 전에 열렸으면 스냅샷 도착 시 auto-fit 재시도 — onAppear 한 번으로는 영구 nil
         .onChange(of: viewModel.snapshot == nil) { _, _ in autoFitWorldWindowIfNeeded() }
         .onChange(of: mapViewMode) { _, mode in
-            if mode == .cloud3D { viewModel.preparePointCloud() }  // 최신 격자 반영
+            if mode == .cloud3D {
+                viewModel.preparePointCloud()          // 최신 격자 반영
+                frozenMesh = viewModel.liveMesh        // 진입 시점 고정 — 재진입하면 새로 고정
+            }
         }
     }
 
@@ -307,12 +314,23 @@ struct ContentView: View {
             .foregroundStyle(.white)
     }
 
+    /// 열 때 스캔 중이면 자동 일시정지 — 결과를 보는 동안 데이터·mesh가 흐르지 않게 (뒤틀림·라벨 유동 방지).
+    private func openExpandedMinimap() {
+        resumeAfterExpand = (viewModel.state == .scanning)
+        if resumeAfterExpand { viewModel.pause() }
+        isMinimapExpanded = true
+    }
+
     private func closeExpandedMinimap() {
         isMinimapExpanded = false
         measurePoints = []
         viewCenter = nil; viewRadius = 5
         baseCenter = nil; baseRadius = nil
         mapViewMode = .map2D
+        frozenMesh = nil
+        // 열기 전이 스캔 중이었을 때만 복귀 — 수동 일시정지 상태는 존중
+        if resumeAfterExpand { viewModel.start() }
+        resumeAfterExpand = false
     }
 
     // MARK: - 거리 측정 (전체화면 전용 — 세계 창 매핑: 뷰 좌표 ↔ 중심·반경 기준 월드 좌표)
