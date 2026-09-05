@@ -51,36 +51,51 @@ struct PointCloudViewerView: UIViewRepresentable {
         var contentSignature = 0
         init(_ parent: PointCloudViewerView) { self.parent = parent }
 
+        /// 탭한 xz별 실제 표면 높이 — 마커를 오브젝트 표면에 붙이기 위한 캐시 (거리 시맨틱은 수평 유지).
+        var surfaceHeights: [SIMD2<Float>: Float] = [:]
+
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? SCNView else { return }
-            let hits = view.hitTest(gesture.location(in: view),
-                                    options: [.categoryBitMask: PointCloudViewerView.floorCategory,
-                                              .ignoreHiddenNodes: false])
-            guard let hit = hits.first else { return }
-            let world = SIMD2(hit.worldCoordinates.x, hit.worldCoordinates.z)
+            let location = gesture.location(in: view)
+            // 1순위: 렌더된 mesh 표면 — 침대·가구 모서리를 탭하면 그 표면 점이 잡힌다.
+            // (바닥 평면은 isHidden이라 기본 히트테스트에서 제외됨)
+            let world: SCNVector3
+            if let surface = view.hitTest(location, options: [.ignoreHiddenNodes: true]).first {
+                world = surface.worldCoordinates
+            } else if let floor = view.hitTest(location,
+                                               options: [.categoryBitMask: PointCloudViewerView.floorCategory,
+                                                         .ignoreHiddenNodes: false]).first {
+                // 2순위: mesh 밖(빈 공간) 탭 — 바닥 평면 투영 fallback
+                world = floor.worldCoordinates
+            } else {
+                return
+            }
+            let xz = SIMD2(world.x, world.z)
+            surfaceHeights[xz] = world.y
             let current = parent.measurePoints
-            parent.measurePoints = current.count >= 2 ? [world] : current + [world]
+            parent.measurePoints = current.count >= 2 ? [xz] : current + [xz]
         }
 
         /// 측정 마커·선 노드를 measurePoints와 동기화. 이름으로 지우고 다시 그린다 (점 최대 2개라 비용 무시).
-        /// 마커 높이는 측정 평면(실제 바닥)과 동일 기준 — y=0 고정이면 공중에 뜬다.
+        /// 마커 높이: 3D에서 탭한 점은 실제 표면 높이, 2D에서 온 점(높이 정보 없음)은 바닥 기준.
         func syncMarkers(in view: SCNView, points: [SIMD2<Float>]) {
             guard let root = view.scene?.rootNode else { return }
             let floorY = root.childNode(withName: "measureFloor", recursively: false)?.position.y ?? 0
-            let markerY = floorY + 0.05
+            surfaceHeights = surfaceHeights.filter { points.contains($0.key) }   // 리셋·새 측정 시 정리
+            func markerY(_ p: SIMD2<Float>) -> Float { (surfaceHeights[p] ?? floorY) + 0.05 }
             root.childNodes.filter { $0.name == "measure" }.forEach { $0.removeFromParentNode() }
             for p in points {
                 let sphere = SCNSphere(radius: 0.06)
                 sphere.firstMaterial?.diffuse.contents = UIColor.orange
                 sphere.firstMaterial?.lightingModel = .constant
                 let node = SCNNode(geometry: sphere)
-                node.position = SCNVector3(p.x, markerY, p.y)
+                node.position = SCNVector3(p.x, markerY(p), p.y)
                 node.name = "measure"
                 root.addChildNode(node)
             }
             if points.count == 2 {
-                let vertices = [SCNVector3(points[0].x, markerY, points[0].y),
-                                SCNVector3(points[1].x, markerY, points[1].y)]
+                let vertices = [SCNVector3(points[0].x, markerY(points[0]), points[0].y),
+                                SCNVector3(points[1].x, markerY(points[1]), points[1].y)]
                 let source = SCNGeometrySource(vertices: vertices)
                 let indices: [Int32] = [0, 1]
                 let element = indices.withUnsafeBufferPointer { buf in
