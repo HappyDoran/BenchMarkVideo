@@ -50,7 +50,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 16건 통과. 런타임 동작은 재배치 전과 동일해야 하며 실기기 재확인은 미검증.
+**검증 상태.** 컴파일·구조 검사·단위 테스트 24건 통과. 실기기 검증 완료 (2026-09-04~05, `README.md` 매트릭스).
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -101,7 +101,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 ### 3.2 검증
 
 - 단위 테스트(`DepthFrameProcessorTests`): 주점 픽셀 → (0, 0, −d), 이미지 오른쪽 → +x, 이미지 아래 → −y, translation이 column 3에서 읽히는지, +x를 보는 자세의 heading = π/2, 실제 `CVPixelBuffer`에서 stride·confidence·범위 필터.
-- 실기기: 알려진 길이의 벽을 스캔해 미니맵 셀 수 × 0.05m와 비교 (`README.md` 매트릭스 "벽 스케일"). **미검증.**
+- 실기기: 알려진 길이 물체 실측으로 검증 완료 — 1.4m 책상 거리 측정 1.38/1.40m (±1.4%), 미니맵 셀 뭉치 폭 픽셀 측정 정합 (`README.md` 매트릭스 "스케일").
 
 ### 3.3 미니맵 회전 기준: 월드 고정 north-up (R2-5)
 
@@ -153,7 +153,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 실기기에서 20m 초과 공간을 스캔해야 하거나, 5cm에서 벽이 두 셀 이상으로 번져 윤곽이 뭉개지면 셀 크기를 조정한다.
 
-**검증 상태.** `cellIndex`·`accumulate`·bounds는 단위 테스트로 고정. 실제 스케일은 실기기 벽 길이 비교로 확인 예정 — 미검증.
+**검증 상태.** `cellIndex`·`accumulate`·bounds는 단위 테스트로 고정. 실제 스케일은 실기기 실측(1.4m 책상 ±1.4%)으로 검증 완료.
 
 ## 6. 바닥·천장 필터: 높이 밴드 슬라이스 (명세 7-2)
 
@@ -170,7 +170,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 실기기에서 시작 높이 가정이 자주 깨지거나(앉아서 시작, 테이블 위에서 시작), 드리프트로 밴드가 어긋나면 ARPlaneAnchor 방식으로 교체한다. 코드에 `ponytail:` 주석으로 표시.
 
-**검증 상태.** 분기 로직은 단위 테스트로 고정. 밴드 값의 적절성은 미검증.
+**검증 상태.** 분기 로직은 단위 테스트로 고정. 밴드 값 실기기 검증 완료 — 바닥 방향 스캔 시 벽 셀 미생성(cells 불변), 천장 폐기 실증. 한계도 실측 확인: 앉은 시작(약 0.6m) 시 바닥이 벽 취급 (스캔 시작 높이 재기준으로 실행-스캔 높이 차는 해소, 시작 자세 가정은 유지).
 
 ## 7. 샘플링과 스로틀 (명세 7-3, 7-4)
 
