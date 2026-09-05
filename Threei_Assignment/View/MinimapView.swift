@@ -8,9 +8,6 @@ import SwiftUI
 struct MinimapView: View {
     let snapshot: MinimapSnapshot?
     var visibleRadius: Float? = nil
-    /// 전체화면 팬·줌 (visibleRadius가 nil일 때만 적용). 오버레이 창은 카메라 추종 변환이 우선.
-    var zoomScale: CGFloat = 1
-    var panOffset: CGSize = .zero
     /// 있으면 격자 이미지 대신 정점 색 mesh top-down 렌더를 배경으로 (오버레이 전용).
     /// 마커·궤적 캔버스의 카메라 중심·반경 매핑이 mesh 직교 카메라와 같아 그대로 정합된다.
     var meshBackground: ColoredMesh? = nil
@@ -53,14 +50,9 @@ struct MinimapView: View {
     }
 
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
-    /// visibleRadius가 nil이면 사용자 팬·줌 — 확대는 **뷰 중앙 기준**(좌상단 앵커면 맵이 구석으로 밀려남).
-    /// view = n·side·zoom + center·(1−zoom) + pan. ContentView의 탭 역변환과 같은 식.
+    /// visibleRadius가 nil이면 항등 (전체화면 fallback — 팬·줌은 ContentView의 세계 창이 담당).
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
-        guard let visibleRadius else {
-            let centering = side / 2 * (1 - zoomScale)
-            return (zoomScale, CGPoint(x: centering + panOffset.width,
-                                       y: centering + panOffset.height))
-        }
+        guard let visibleRadius else { return (1, .zero) }
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))
         let n = snapshot.normalizedPoint(snapshot.cameraPosition)
         return (scale, CGPoint(x: side * (0.5 - n.x * scale), y: side * (0.5 - n.y * scale)))

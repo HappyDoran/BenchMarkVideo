@@ -44,11 +44,13 @@ struct MeshTopDownView: UIViewRepresentable {
     }
 
     private func apply(to coordinator: Coordinator) {
-        // 카메라: 사용자 위치 상공 20m에서 수직 하향, 화면 위 = 월드 -z (north-up)
+        // 카메라: 지정 위치 상공 20m에서 수직 하향, 화면 위 = 월드 -z (north-up).
+        // orthographicScale도 매번 갱신 — 전체화면 핀치 줌이 반경으로 들어온다.
         if let cam = coordinator.cameraNode {
             cam.simdPosition = SIMD3(cameraXZ.x, 20, cameraXZ.y)
             cam.simdLook(at: SIMD3(cameraXZ.x, 0, cameraXZ.y),
                          up: SIMD3(0, 0, -1), localFront: SIMD3(0, 0, -1))
+            cam.camera?.orthographicScale = Double(visibleRadius)
         }
         // mesh: 정점 수가 바뀌었을 때만 재구성 (1~2초 주기 갱신)
         let count = mesh?.positions.count ?? 0

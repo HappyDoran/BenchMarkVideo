@@ -8,11 +8,12 @@ struct ContentView: View {
     @State private var isMinimapExpanded = false
     /// 거리 측정 점(월드 xz, 최대 2개) — 전체화면에서 탭으로 지정, 세 번째 탭은 새 측정 시작.
     @State private var measurePoints: [SIMD2<Float>] = []
-    /// 전체화면 팬·줌 상태. 제스처 진행 중 기준값은 base에 고정.
-    @State private var mapZoom: CGFloat = 1
-    @State private var mapPan: CGSize = .zero
-    @State private var baseZoom: CGFloat = 1
-    @State private var basePan: CGSize = .zero
+    /// 전체화면 2D 세계 창 — 중심(월드 xz)과 반경(m). 팬 = 중심 이동, 줌 = 반경 축소.
+    /// nil이면 첫 스냅샷의 관측 영역으로 auto-fit 초기화.
+    @State private var viewCenter: SIMD2<Float>?
+    @State private var viewRadius: Float = 5
+    @State private var baseCenter: SIMD2<Float>?
+    @State private var baseRadius: Float?
     /// 전체화면 뷰어 모드 — 2D 미니맵 / 3D 점군. 측정 상태(measurePoints)는 두 모드가 공유.
     @State private var mapViewMode: MapViewMode = .map2D
 
@@ -193,24 +194,44 @@ struct ContentView: View {
 
                 if mapViewMode == .map2D {
                     GeometryReader { geo in
-                        MinimapView(snapshot: viewModel.snapshot, zoomScale: mapZoom, panOffset: mapPan)
-                            .overlay { measureOverlay(side: geo.size.width) }
-                            .onTapGesture(coordinateSpace: .local) { p in
-                                addMeasurePoint(p, side: geo.size.width)
+                        let side = geo.size.width
+                        ZStack {
+                            Color.black.opacity(0.55)
+                            if let mesh = viewModel.liveMesh, !mesh.positions.isEmpty,
+                               let center = viewCenter {
+                                // 오버레이 미니맵과 같은 mesh top-down — 격자 비트맵의 도트·검정 블록 없음
+                                MeshTopDownView(mesh: mesh, cameraXZ: center, visibleRadius: viewRadius)
+                            } else {
+                                // mesh가 아직 없을 때(스캔 극초반)만 격자 fallback
+                                MinimapView(snapshot: viewModel.snapshot)
                             }
-                            .simultaneousGesture(
-                                MagnificationGesture()
-                                    .onChanged { mapZoom = min(max(baseZoom * $0, 1), 8) }
-                                    .onEnded { _ in baseZoom = mapZoom }
-                            )
-                            .simultaneousGesture(
-                                DragGesture()
-                                    .onChanged {
-                                        mapPan = CGSize(width: basePan.width + $0.translation.width,
-                                                        height: basePan.height + $0.translation.height)
-                                    }
-                                    .onEnded { _ in basePan = mapPan }
-                            )
+                            map2DOverlay(side: side)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.25)))
+                        .onTapGesture(coordinateSpace: .local) { p in
+                            addMeasurePoint(p, side: side)
+                        }
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    if baseRadius == nil { baseRadius = viewRadius }
+                                    viewRadius = min(max((baseRadius ?? viewRadius) / Float(value), 0.5), 20)
+                                }
+                                .onEnded { _ in baseRadius = nil }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    guard let center = viewCenter else { return }
+                                    if baseCenter == nil { baseCenter = center }
+                                    let metersPerPoint = 2 * viewRadius / Float(side)
+                                    viewCenter = (baseCenter ?? center) - SIMD2(
+                                        Float(value.translation.width) * metersPerPoint,
+                                        Float(value.translation.height) * metersPerPoint)
+                                }
+                                .onEnded { _ in baseCenter = nil }
+                        )
                     }
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
@@ -256,6 +277,11 @@ struct ContentView: View {
         .onAppear {
             viewModel.prepareExport()
             viewModel.preparePointCloud()   // 3D 전환 시 바로 보이게 미리 준비
+            // 세계 창 auto-fit 초기화: 관측 영역 중심 + 반경 (스냅샷 crop 기반)
+            if viewCenter == nil, let snapshot = viewModel.snapshot {
+                viewCenter = snapshot.worldPoint(normalized: CGPoint(x: 0.5, y: 0.5))
+                viewRadius = max(snapshot.cropSideMeters / 2, 2)
+            }
         }
         .onChange(of: mapViewMode) { _, mode in
             if mode == .cloud3D { viewModel.preparePointCloud() }  // 최신 격자 반영
@@ -274,8 +300,8 @@ struct ContentView: View {
     private func closeExpandedMinimap() {
         isMinimapExpanded = false
         measurePoints = []
-        mapZoom = 1; mapPan = .zero
-        baseZoom = 1; basePan = .zero
+        viewCenter = nil; viewRadius = 5
+        baseCenter = nil; baseRadius = nil
         mapViewMode = .map2D
     }
 
@@ -289,31 +315,48 @@ struct ContentView: View {
         }
     }
 
-    /// 뷰 중앙 앵커 줌 변환의 offset 성분 (MinimapView.mapTransform과 같은 식).
-    private func zoomOffset(side: CGFloat) -> CGSize {
-        let centering = side / 2 * (1 - mapZoom)
-        return CGSize(width: centering + mapPan.width, height: centering + mapPan.height)
+    /// 월드 (x, z) → 전체화면 2D 뷰 좌표 (세계 창: 중심 viewCenter, 반경 viewRadius).
+    private func worldToView(_ w: SIMD2<Float>, side: CGFloat) -> CGPoint? {
+        guard let center = viewCenter else { return nil }
+        let s = side / CGFloat(2 * viewRadius)
+        return CGPoint(x: side / 2 + CGFloat(w.x - center.x) * s,
+                       y: side / 2 + CGFloat(w.y - center.y) * s)
     }
 
     private func addMeasurePoint(_ p: CGPoint, side: CGFloat) {
-        guard side > 0, let snapshot = viewModel.snapshot else { return }
-        // 팬·줌(중앙 앵커) 역변환: 뷰 좌표 → 정규화 좌표
-        let o = zoomOffset(side: side)
-        let n = CGPoint(x: (p.x - o.width) / mapZoom / side,
-                        y: (p.y - o.height) / mapZoom / side)
-        let world = snapshot.worldPoint(normalized: n)
+        guard side > 0, let center = viewCenter else { return }
+        let metersPerPoint = 2 * viewRadius / Float(side)
+        let world = center + SIMD2(Float(p.x - side / 2) * metersPerPoint,
+                                   Float(p.y - side / 2) * metersPerPoint)
         measurePoints = measurePoints.count >= 2 ? [world] : measurePoints + [world]
     }
 
-    private func measureOverlay(side: CGFloat) -> some View {
+    /// 전체화면 2D 오버레이 — 궤적·마커·측정 (mesh 배경 위, 세계 창 매핑).
+    private func map2DOverlay(side: CGFloat) -> some View {
         Canvas { context, _ in
             guard let snapshot = viewModel.snapshot else { return }
-            let o = zoomOffset(side: side)
-            let points = measurePoints.map { w -> CGPoint in
-                let n = snapshot.normalizedPoint(w)
-                return CGPoint(x: n.x * side * mapZoom + o.width,
-                               y: n.y * side * mapZoom + o.height)
+            // 궤적
+            let trail = (snapshot.trajectory + [snapshot.cameraPosition])
+                .compactMap { worldToView($0, side: side) }
+            if trail.count > 1 {
+                var path = Path()
+                path.move(to: trail[0])
+                for p in trail.dropFirst() { path.addLine(to: p) }
+                context.stroke(path, with: .color(.cyan.opacity(0.7)), lineWidth: 1.5)
             }
+            // 마커 (방향 삼각형)
+            if let c = worldToView(snapshot.cameraPosition, side: side) {
+                var triangle = Path()
+                triangle.move(to: CGPoint(x: 0, y: -7))
+                triangle.addLine(to: CGPoint(x: 5, y: 6))
+                triangle.addLine(to: CGPoint(x: -5, y: 6))
+                triangle.closeSubpath()
+                let transform = CGAffineTransform(translationX: c.x, y: c.y)
+                    .rotated(by: CGFloat(snapshot.cameraHeading))
+                context.fill(triangle.applying(transform), with: .color(.yellow))
+            }
+            // 측정 마커·선
+            let points = measurePoints.compactMap { worldToView($0, side: side) }
             if points.count == 2 {
                 var line = Path()
                 line.move(to: points[0])
