@@ -59,8 +59,9 @@ struct ContentView: View {
                     Spacer()
                     if !isMinimapExpanded {
                         // 반경 3m — 게임 미니맵처럼 주변이 크게 보이게 (사용자 결정, 6 → 3).
-                        // 넓은 맥락은 전체화면(팬·줌)이 담당.
-                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 3)
+                        // 배경은 실시간 mesh top-down(질감), 마커·궤적은 기존 캔버스. 넓은 맥락은 전체화면 담당.
+                        MinimapView(snapshot: viewModel.snapshot, visibleRadius: 3,
+                                    meshBackground: viewModel.liveMesh)
                             .frame(width: 170)
                             .onTapGesture { isMinimapExpanded = true }
                     }

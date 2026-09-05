@@ -15,11 +15,13 @@ nonisolated struct ColoredMesh: Sendable {
 /// 스레딩: scan.processing 큐에서만 접근 (OccupancyGrid와 동일 규약).
 nonisolated final class VoxelColorStore {
 
-    /// 조밀 복셀(m) — 색 디테일. 성긴 복셀은 미관측 정점의 fallback.
-    static let fineSize: Float = 0.1
+    /// 3단계 복셀(m) — 조밀할수록 색 디테일, 성길수록 미관측 정점 커버리지 (fallback 체인).
+    static let fineSize: Float = 0.05
+    static let midSize: Float = 0.15
     static let coarseSize: Float = 0.4
 
     private var fine: [SIMD3<Int32>: SIMD3<UInt8>] = [:]
+    private var mid: [SIMD3<Int32>: SIMD3<UInt8>] = [:]
     private var coarse: [SIMD3<Int32>: SIMD3<UInt8>] = [:]
 
     static func key(_ p: SIMD3<Float>, size: Float) -> SIMD3<Int32> {
@@ -32,6 +34,7 @@ nonisolated final class VoxelColorStore {
     func accumulate(points: [ScanPoint]) {
         for sp in points {
             blend(&fine, key: Self.key(sp.position, size: Self.fineSize), color: sp.color)
+            blend(&mid, key: Self.key(sp.position, size: Self.midSize), color: sp.color)
             blend(&coarse, key: Self.key(sp.position, size: Self.coarseSize), color: sp.color)
         }
     }
@@ -45,13 +48,16 @@ nonisolated final class VoxelColorStore {
         }
     }
 
-    /// 조밀 → 성긴 순 조회. 둘 다 없으면 nil (호출부가 중간 회색 등으로 대체).
+    /// 조밀 → 성긴 순 조회. 전부 없으면 nil (호출부가 중간 회색 등으로 대체).
     func color(at p: SIMD3<Float>) -> SIMD3<UInt8>? {
-        fine[Self.key(p, size: Self.fineSize)] ?? coarse[Self.key(p, size: Self.coarseSize)]
+        fine[Self.key(p, size: Self.fineSize)]
+            ?? mid[Self.key(p, size: Self.midSize)]
+            ?? coarse[Self.key(p, size: Self.coarseSize)]
     }
 
     func reset() {
         fine.removeAll(keepingCapacity: true)
+        mid.removeAll(keepingCapacity: true)
         coarse.removeAll(keepingCapacity: true)
     }
 }

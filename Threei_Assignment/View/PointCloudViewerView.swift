@@ -177,7 +177,8 @@ struct PointCloudViewerView: UIViewRepresentable {
     }
 
     /// ColoredMesh → 정점 색 삼각형 지오메트리. 조명 없이 색 그대로, 양면 렌더.
-    private static func makeMeshGeometry(_ mesh: ColoredMesh) -> SCNGeometry {
+    /// MeshTopDownView(미니맵)도 같은 빌더를 쓴다.
+    static func makeMeshGeometry(_ mesh: ColoredMesh) -> SCNGeometry {
         let count = mesh.positions.count
         let vertexData = mesh.positions.withUnsafeBufferPointer { Data(buffer: $0) }
         let vertexSource = SCNGeometrySource(

@@ -52,7 +52,8 @@ last_verified: 2026-09-04
     │   ├── ContentView.swift             # 화면 조립, 상태바, 제어 버튼, 예외 화면
     │   ├── ARPreviewView.swift           # UIViewRepresentable — ARView 생성, 세션 콜백
     │   ├── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas, 전체화면 팬·줌 변환
-    │   └── PointCloudViewerView.swift    # SceneKit 점군 3D 뷰어 (회전·줌·팬)
+    │   ├── PointCloudViewerView.swift    # SceneKit 정점 색 mesh/점군 3D 뷰어 (회전·줌·팬·바닥 탭 측정)
+    │   └── MeshTopDownView.swift         # mesh 직교 하향 렌더 — 미니맵 배경 레이어
     └── Assets.xcassets/
 ```
 

@@ -11,6 +11,9 @@ struct MinimapView: View {
     /// 전체화면 팬·줌 (visibleRadius가 nil일 때만 적용). 오버레이 창은 카메라 추종 변환이 우선.
     var zoomScale: CGFloat = 1
     var panOffset: CGSize = .zero
+    /// 있으면 격자 이미지 대신 정점 색 mesh top-down 렌더를 배경으로 (오버레이 전용).
+    /// 마커·궤적 캔버스의 카메라 중심·반경 매핑이 mesh 직교 카메라와 같아 그대로 정합된다.
+    var meshBackground: ColoredMesh? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -20,7 +23,11 @@ struct MinimapView: View {
 
                 if let snapshot {
                     let (scale, offset) = mapTransform(snapshot, side: side)
-                    if let cgImage = snapshot.image {
+                    if let meshBackground, let visibleRadius, !meshBackground.positions.isEmpty {
+                        MeshTopDownView(mesh: meshBackground,
+                                        cameraXZ: snapshot.cameraPosition,
+                                        visibleRadius: visibleRadius)
+                    } else if let cgImage = snapshot.image {
                         Image(decorative: cgImage, scale: 1)
                             .interpolation(.medium)   // 셀 경계를 부드럽게 — .none은 도트맵처럼 보임 (실기기 피드백)
                             .resizable()

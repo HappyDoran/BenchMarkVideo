@@ -25,6 +25,9 @@ final class ScanViewModel {
     private(set) var pointCloud: GridPointCloud?
     /// 3D 뷰어용 정점 색 mesh — 있으면 점군 대신 표시.
     private(set) var coloredMesh: ColoredMesh?
+    /// 오버레이 미니맵 배경용 실시간 mesh — 1.5초 주기 갱신.
+    private(set) var liveMesh: ColoredMesh?
+    private var meshRefreshTimer: Timer?
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
     private(set) var fatalMessage: String?
     private(set) var isPermissionDenied = false
@@ -68,6 +71,22 @@ final class ScanViewModel {
     /// ARView가 소유한 세션을 파이프라인에 연결. View → ViewModel → Model 경로 유지용.
     func attach(session: ARSession) {
         sessionManager.attach(to: session)
+        startMeshRefresh()
+    }
+
+    /// 미니맵 배경 mesh를 1.5초마다 재생성 — 스캔 화면이 살아 있는 동안 계속.
+    /// VM은 앱 수명과 같아 타이머 해제는 두지 않는다.
+    private func startMeshRefresh() {
+        meshRefreshTimer?.invalidate()
+        meshRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.sessionManager.exportColoredMesh { mesh in
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated { self?.liveMesh = mesh }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - 스캔 제어
