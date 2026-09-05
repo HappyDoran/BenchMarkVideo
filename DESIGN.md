@@ -216,7 +216,8 @@ Development의 Debug 구성은 별도 `SCAN_DIAGNOSTICS` 컴파일 조건으로 
 
 처리 큐는 약 0.5초 고정 창의 수신·처리
 프레임, 콜백 평균·최대, 현재/최장 연속 누적 허용 시간만 보관해 진단 자체의 메모리 상한을
-고정한다. ViewModel은 격자와 mesh가 UI에 도착한 시각을 따로 기록한다. mesh에는 빌드에 사용한
+고정한다. 콜백 3초 창 p50·p95, 누적 수신·깊이 처리 프레임 수, 깊이 소스(smoothed/raw)는 기존
+perf 로그 계산값을 그대로 실어 콘솔 없이 패널만으로 읽게 했다. ViewModel은 격자와 mesh가 UI에 도착한 시각을 따로 기록한다. mesh에는 빌드에 사용한
 ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상에서 구분한다.
 
 1. 제어 상태는 스캔인데 tracking/depth gate가 실제 누적을 보류하는 경우
@@ -245,8 +246,8 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 
 1. `ARSessionManager.session(_:didUpdate:)` 진입·종료에 `os_signpost` 구간을 두고 Instruments Points of Interest로 콜백 처리 시간 분포를 본다. 측정 코드는 `#if SCAN_DIAGNOSTICS`.
 2. Instruments Allocations로 3분 이상 스캔 중 메모리 곡선과 피크를 본다.
-3. Xcode Debug Navigator FPS 게이지로 평균·최저 FPS를 읽는다.
-4. 프레임당 처리 포인트 수는 `worldPoints` 반환 배열 길이를 진단 로그로 남긴다.
+3. UI fps는 `FPSMonitor`(CADisplayLink, 3초 창)가 평균·최대 간격을 진단 패널과 `perf` 로그에 남긴다. Xcode FPS 게이지는 디버거 부착이 필요해 쓰지 않는다.
+4. 프레임당 처리 포인트 수, 콜백 3초 창 p50·p95, 메모리 footprint는 진단 패널 부하 탭과 `perf` 로그에 같은 원천으로 남긴다. 녹화 판독 시 패널이 1차 자료, 로그는 `log collect --device` 사후 수집용이다.
 
 **결과.** 2026-09-04, iPhone 15 Pro · iOS 26.6, **Development(Debug) 빌드** 3분 연속 스캔, 자가 계측 로그(처리 프레임 1,560개) 판독. Instruments는 CLI 설치 빌드 attach 거부로 미사용 — 앱이 3초마다 지표를 unified log로 남기는 방식으로 대체.
 
