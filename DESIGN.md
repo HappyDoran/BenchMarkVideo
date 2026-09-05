@@ -209,7 +209,12 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 
 ## 10. 성능 예산과 측정 (R3)
 
-Development 빌드에는 녹화 판독용 진단 패널을 둔다. 처리 큐는 약 0.5초 고정 창의 수신·처리
+Development의 Debug 구성은 별도 `SCAN_DIAGNOSTICS` 컴파일 조건으로 녹화 판독용 진단 패널과
+계측을 포함한다. Production의 Release 구성에는 이 조건이 없어 관련 코드가 컴파일되지 않는다.
+`DEBUG`와 분리한 이유는 최적화 수준과 스캔 계측 활성 여부를 하나의 조건으로 오해하지 않게 하고,
+향후 Release 최적화 + 최소 계측 구성이 필요할 때 같은 조건을 재사용하기 위해서다.
+
+처리 큐는 약 0.5초 고정 창의 수신·처리
 프레임, 콜백 평균·최대, 현재/최장 연속 누적 허용 시간만 보관해 진단 자체의 메모리 상한을
 고정한다. ViewModel은 격자와 mesh가 UI에 도착한 시각을 따로 기록한다. mesh에는 빌드에 사용한
 ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상에서 구분한다.
@@ -238,10 +243,10 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 
 **측정 방법 (실기기 iPhone 15 Pro).**
 
-1. `ARSessionManager.session(_:didUpdate:)` 진입·종료에 `os_signpost` 구간을 두고 Instruments Points of Interest로 콜백 처리 시간 분포를 본다. 측정 코드는 `#if DEBUG`.
+1. `ARSessionManager.session(_:didUpdate:)` 진입·종료에 `os_signpost` 구간을 두고 Instruments Points of Interest로 콜백 처리 시간 분포를 본다. 측정 코드는 `#if SCAN_DIAGNOSTICS`.
 2. Instruments Allocations로 3분 이상 스캔 중 메모리 곡선과 피크를 본다.
 3. Xcode Debug Navigator FPS 게이지로 평균·최저 FPS를 읽는다.
-4. 프레임당 처리 포인트 수는 `worldPoints` 반환 배열 길이를 DEBUG 로그로 남긴다.
+4. 프레임당 처리 포인트 수는 `worldPoints` 반환 배열 길이를 진단 로그로 남긴다.
 
 **결과.** 2026-09-04, iPhone 15 Pro · iOS 26.6, **Development(Debug) 빌드** 3분 연속 스캔, 자가 계측 로그(처리 프레임 1,560개) 판독. Instruments는 CLI 설치 빌드 attach 거부로 미사용 — 앱이 3초마다 지표를 unified log로 남기는 방식으로 대체.
 
@@ -255,7 +260,7 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 
 **해석 (측정 후 추가).**
 
-- 콜백 시간은 시간에 따라 상승한다 — 초반 3초 p50 0.31ms → 말미 누적 11.9ms. 격자 누적이 아니라 `MinimapRenderer` 비트맵 생성이 관측 영역 면적에 비례해 커지는 것이 원인. Debug(-Onone) 수치라 Release는 이보다 낮고, 콜백은 전용 직렬 큐에서 돌아 UI 프레임을 직접 막지 않는다 (10Hz × 12ms ≈ 큐 점유 12%). 목표 <10ms는 Debug 기준 미달 — Release 재측정 전에는 7절 파라미터를 조정하지 않는다 (계측이 `#if DEBUG` 전용이라 Release 측정은 계측 플래그 분리가 선행 조건).
+- 콜백 시간은 시간에 따라 상승한다 — 초반 3초 p50 0.31ms → 말미 누적 11.9ms. 격자 누적이 아니라 `MinimapRenderer` 비트맵 생성이 관측 영역 면적에 비례해 커지는 것이 원인. Debug(-Onone) 수치라 Release는 이보다 낮고, 콜백은 전용 직렬 큐에서 돌아 UI 프레임을 직접 막지 않는다 (10Hz × 12ms ≈ 큐 점유 12%). 목표 <10ms는 Debug 기준 미달이다. 계측 조건은 `SCAN_DIAGNOSTICS`로 분리했지만 현재 Production에는 정의하지 않았으므로 Release 재측정에는 조건을 임시로 적용한 별도 측정 구성이 필요하다.
 - "메모리 증가 없음" 가정은 앱 격자에만 성립한다. `sceneReconstruction` mesh 앵커는 스캔 면적에 비례해 ARKit이 계속 쌓는다 — 3분 방 스캔에 약 +330MB. 초기화(`resetSceneReconstruction`)가 회수 수단이다.
 - 3분 시점 ARKit이 "resource constraints" 경고와 함께 depth integration을 건너뛰는 구간이 관측됐다 (Debug + 계측 부하 조건). Production 기준 재현 여부는 미확인.
 

@@ -39,7 +39,7 @@ struct ContentView: View {
                 scanScreen
             }
         }
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         .overlay(alignment: .topLeading) {
             ScanDebugView(viewModel: viewModel)
                 .padding(.horizontal, 12)
@@ -49,7 +49,7 @@ struct ContentView: View {
     }
 
     private var overlayMesh: ColoredMesh? {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         if viewModel.diagnosticGridOnly { return nil }
         #endif
         return viewModel.liveMesh
@@ -332,7 +332,7 @@ struct ContentView: View {
 
     /// 열 때 스캔 중이면 자동 일시정지 — 결과를 보는 동안 데이터·mesh가 흐르지 않게 (뒤틀림·라벨 유동 방지).
     private func openExpandedMinimap() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         viewModel.markDiagnosticEvent("전체화면 열기")
         #endif
         resumeAfterExpand = (viewModel.state == .scanning)
@@ -341,7 +341,7 @@ struct ContentView: View {
     }
 
     private func closeExpandedMinimap() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         viewModel.markDiagnosticEvent("전체화면 닫기")
         #endif
         isMinimapExpanded = false

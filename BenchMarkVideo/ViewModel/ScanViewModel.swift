@@ -26,7 +26,7 @@ final class ScanViewModel {
     /// 미니맵 배경·3D 뷰어 공용 실시간 mesh — 1.5초 주기, 입력 변경 시에만 재빌드·발행.
     private(set) var liveMesh: ColoredMesh?
     private var meshRefreshTimer: Timer?
-    #if DEBUG
+    #if SCAN_DIAGNOSTICS
     private(set) var diagnostics = ScanDiagnostics()
     private(set) var diagnosticSnapshotTime: TimeInterval = 0
     private(set) var diagnosticMeshTime: TimeInterval = 0
@@ -58,7 +58,7 @@ final class ScanViewModel {
     nonisolated deinit {}
 
     init() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         sessionManager.onDiagnostics = { [weak self] value in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.diagnostics = value }
@@ -70,7 +70,7 @@ final class ScanViewModel {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.snapshot = snapshot
-                    #if DEBUG
+                    #if SCAN_DIAGNOSTICS
                     self?.diagnosticSnapshotTime = ProcessInfo.processInfo.systemUptime
                     #endif
                 }
@@ -85,7 +85,7 @@ final class ScanViewModel {
 
     /// internal: handle 분기가 넷을 넘어 test-policy 전환 조건 충족 — `ScanViewModelTests`가 직접 호출.
     func handle(_ event: ScanEvent) {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         switch event {
         case .trackingChanged(let message): markDiagnosticEvent(message ?? "트래킹 정상")
         case .sessionFailed(let message, _): markDiagnosticEvent(message)
@@ -124,7 +124,7 @@ final class ScanViewModel {
     // MARK: - 스캔 제어
 
     func start() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         markDiagnosticEvent("시작/재개 요청")
         #endif
         sessionManager.startAccumulating()
@@ -143,7 +143,7 @@ final class ScanViewModel {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.liveMesh = mesh
-                    #if DEBUG
+                    #if SCAN_DIAGNOSTICS
                     self?.diagnosticMeshTime = ProcessInfo.processInfo.systemUptime
                     #endif
                 }
@@ -152,7 +152,7 @@ final class ScanViewModel {
     }
 
     func pause() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         markDiagnosticEvent("일시정지 요청")
         #endif
         sessionManager.pauseAccumulating()
@@ -160,7 +160,7 @@ final class ScanViewModel {
     }
 
     func reset() {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         markDiagnosticEvent("초기화 요청")
         diagnosticMeshTime = 0
         #endif

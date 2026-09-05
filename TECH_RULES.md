@@ -19,6 +19,8 @@ last_verified: 2026-09-05
 - XCTest — `BenchMarkVideoTests` 타깃 (Model 순수 함수, 시뮬레이터 실행)
 - 서드파티 의존성 없음. 표준 프레임워크로 불가능한 경우에만 추가하고, 추가하면 이 절과 `DESIGN.md`에 사유를 적는다.
 - 테스트 기기: iPhone 15 Pro (LiDAR). Portrait 고정 (iPhone/iPad).
+- 녹화 진단 코드의 컴파일 조건은 `SCAN_DIAGNOSTICS`. Development의 Debug 구성에서만 정의하며,
+  Production의 Release 구성에는 정의하지 않는다. 일반 `DEBUG` 조건을 스캔 진단 기능 경계로 쓰지 않는다.
 
 ## 2. 좌표계 규약 — 절대 어기지 말 것
 

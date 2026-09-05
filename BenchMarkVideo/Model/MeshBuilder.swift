@@ -8,7 +8,7 @@ nonisolated struct ColoredMesh: Sendable {
     var indices: [Int32] = []
     /// 빌드 순번 — 정점 수가 같아도 색·기하가 갱신됐는지 뷰가 판별하는 기준 (ARSessionManager가 부여).
     var version: Int = 0
-    #if DEBUG
+    #if SCAN_DIAGNOSTICS
     var diagnosticGeneration = 0
     var diagnosticSourceTimestamp: Double = 0
     var diagnosticBuildMs: Double = 0
@@ -30,7 +30,7 @@ nonisolated final class VoxelColorStore {
     static let midSize: Float = 0.15
     static let coarseSize: Float = 0.4
 
-    #if DEBUG
+    #if SCAN_DIAGNOSTICS
     var diagnosticEntryCount: Int { fine.count + mid.count + coarse.count }
     #endif
 

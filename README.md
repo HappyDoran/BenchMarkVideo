@@ -23,8 +23,12 @@ open BenchMarkVideo.xcodeproj
 ```
 
 1. Xcode에서 scheme을 선택한다 (공유 scheme 2개, 저장소에 포함).
-   - `BenchMarkVideo-Production` — 실사용·성능 확인용. Release, 디버거 미부착, GPU Frame Capture Disabled, Metal API Validation off. 카메라 표시까지의 시간이 실사용 기준이다.
-   - `BenchMarkVideo-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
+   - `BenchMarkVideo-Production` — 실사용·성능 확인용. Release, 디버거 미부착,
+     `SCAN_DIAGNOSTICS` 미정의, GPU Frame Capture Disabled, Metal API Validation off.
+     카메라 표시까지의 시간이 실사용 기준이다.
+   - `BenchMarkVideo-Development` — 개발·녹화 진단용. Debug + LLDB + `SCAN_DIAGNOSTICS`.
+     진단 패널·자가 계측을 포함하며 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이
+     수 배 느릴 수 있다.
 2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.benchmarkvideo`, 필요하면 변경).
 3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
 4. 첫 실행 시 카메라 권한을 허용한다. 우하단 "스캔 시작"을 누르면 좌하단 미니맵이 채워진다.
@@ -138,8 +142,10 @@ iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04,
 
 ### 녹화 진단 패널 (Development 전용)
 
-`BenchMarkVideo-Development` 빌드는 화면 좌상단에 `진단 D1` 패널을 표시한다. 제출용
-`BenchMarkVideo-Production`에는 패널과 계측 코드가 포함되지 않는다.
+`BenchMarkVideo-Development`의 Debug 구성은 `SCAN_DIAGNOSTICS` 컴파일 조건을 정의하고 화면
+좌상단에 `진단 D1` 패널을 표시한다. 제출용 `BenchMarkVideo-Production`의 Release 구성에는
+이 조건이 없어 패널과 계측 코드가 컴파일되지 않는다. `DEBUG`는 최적화·assert 등 일반 개발
+빌드 의미로만 남기고, 스캔 진단 기능의 경계로 사용하지 않는다.
 
 - **갱신**: 제어 상태와 실제 누적 gate, 격자·mesh UI 수신 시각, mesh 원본 프레임 시각,
   누적 점·셀, 연속 누적 허용 시간을 표시한다. `격자만 보기`로 같은 장면의 occupancy grid와

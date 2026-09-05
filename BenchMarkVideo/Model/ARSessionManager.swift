@@ -1,7 +1,7 @@
 @preconcurrency import ARKit
 import Foundation
 import simd
-#if DEBUG
+#if SCAN_DIAGNOSTICS
 import os
 #endif
 
@@ -98,12 +98,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         }
         isFirstStartSinceAttach = true
         runSession(reset: false, withMesh: false)
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
         #endif
     }
 
-    #if DEBUG
+    #if SCAN_DIAGNOSTICS
     var onDiagnostics: (@Sendable (ScanDiagnostics) -> Void)?
     private var diagnosticWindow = ScanDiagnosticWindow()
     private var diagnosticGeneration = 0
@@ -203,12 +203,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             guard signature != self.lastMeshInputSignature else { completion(nil); return }
             self.lastMeshInputSignature = signature
             self.meshBuildCount += 1
-            #if DEBUG
+            #if SCAN_DIAGNOSTICS
             let buildStart = ProcessInfo.processInfo.systemUptime
             let sourceTimestamp = frame?.timestamp ?? 0
             #endif
             var mesh = MeshBuilder.coloredMesh(anchors: anchors, colors: self.voxelColors)
-            #if DEBUG
+            #if SCAN_DIAGNOSTICS
             mesh.diagnosticGeneration = self.diagnosticGeneration
             mesh.diagnosticSourceTimestamp = sourceTimestamp
             mesh.diagnosticBuildMs = (ProcessInfo.processInfo.systemUptime - buildStart) * 1000
@@ -222,7 +222,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     func reset() {
         processingQueue.async {
             self.isAccumulating = false
-            #if DEBUG
+            #if SCAN_DIAGNOSTICS
             self.diagnosticGeneration += 1
             self.diagnosticWindow = ScanDiagnosticWindow()
             #endif
@@ -252,7 +252,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     // MARK: - ARSessionDelegate (processingQueue에서 호출됨)
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         diagnosticWindow.receive()
         debugFrameCount += 1
         if debugFrameCount == 1 || debugFrameCount % 300 == 0 {
@@ -268,7 +268,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 스로틀: 처리 주기 미달이면 즉시 반환 (ARFrame 잡지 않음)
         guard frame.timestamp - lastProcessedTime >= Self.processInterval else { return }
         lastProcessedTime = frame.timestamp
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         let signpostState = signposter.beginInterval("frameCallback")
         let callbackStart = ProcessInfo.processInfo.systemUptime
         var diagnosticSampled = 0
@@ -338,7 +338,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             settleUntil = frame.timestamp + Self.relocalizationSettleTime
         }
         let isSettling = frame.timestamp < settleUntil
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         diagnosticGate = isAccumulating ? "트래킹 보류" : (hasStarted ? "일시정지" : "시작 전")
         if isAccumulating, isSettling { diagnosticGate = "재인식 안정화" }
         #endif
@@ -346,11 +346,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다.
         // 재로컬라이즈 안정화 구간(isSettling)에도 보류 — 수렴 중 포즈가 정합을 오염시킨다.
         if isAccumulating, !isSettling, case .normal = frame.camera.trackingState {
-            #if DEBUG
+            #if SCAN_DIAGNOSTICS
             diagnosticGate = "깊이 없음"
             #endif
             if let depth = frame.smoothedSceneDepth ?? frame.sceneDepth {
-                #if DEBUG
+                #if SCAN_DIAGNOSTICS
                 diagnosticAllowed = true
                 diagnosticGate = "누적 허용"
                 #endif
@@ -361,12 +361,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     intrinsics: frame.camera.intrinsics,
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
-                #if DEBUG
+                #if SCAN_DIAGNOSTICS
                 diagnosticSampled = points.count
                 #endif
                 grid.accumulate(points: points, originY: scanOriginY ?? 0)
                 voxelColors.accumulate(points: points)   // 3D 뷰어 정점 색
-                #if DEBUG
+                #if SCAN_DIAGNOSTICS
                 debugProcessedCount += 1
                 if debugProcessedCount % 30 == 0, !debugCallbackMs.isEmpty {
                     // 약 3초 창 단위 백분위 — 누적하면 초반 샘플이 지배해 후반 저하를 가리고,
@@ -436,7 +436,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         print("[scan] session failed: \(error)")
         #endif
         let isPermission = (error as? ARError)?.code == .cameraUnauthorized

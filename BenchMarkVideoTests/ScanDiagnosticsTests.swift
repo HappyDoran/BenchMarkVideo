@@ -1,4 +1,4 @@
-#if DEBUG
+#if SCAN_DIAGNOSTICS
 import XCTest
 @testable import BenchMarkVideo
 

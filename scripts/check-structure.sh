@@ -40,6 +40,13 @@ for d in .claude/skills/*/; do
   [ -f ".codex/skills/$n/SKILL.md" ] || err "canonical 없는 skill: $d"
 done
 
+# 3b. 녹화 진단 경계: Debug 구성 한 곳에만 조건을 정의하고 Release에는 포함하지 않는다.
+PBX=BenchMarkVideo.xcodeproj/project.pbxproj
+diag_count=$(grep -c 'SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SCAN_DIAGNOSTICS $(inherited)";' "$PBX" || true)
+[ "$diag_count" -eq 1 ] || err "SCAN_DIAGNOSTICS는 project Debug 구성 한 곳에만 정의해야 함"
+release_diag_count=$(sed -n '/\/\* Release \*\//,/name = Release;/p' "$PBX" | grep -c 'SCAN_DIAGNOSTICS' || true)
+[ "$release_diag_count" -eq 0 ] || err "Release 구성에 SCAN_DIAGNOSTICS 정의 금지"
+
 # 4. Swift 배치: App / Model / ViewModel / View 아래만
 find "$SRC" -name '*.swift' | grep -vE "^$SRC/(App|Model|ViewModel|View)/[^/]+\.swift$" \
   | while read -r f; do err "MVVM 폴더 밖 또는 하위 폴더: $f"; done

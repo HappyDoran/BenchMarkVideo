@@ -1,4 +1,4 @@
-#if DEBUG
+#if SCAN_DIAGNOSTICS
 import Foundation
 import SwiftUI
 
@@ -17,6 +17,11 @@ struct ScanDebugView: View {
             }
             .font(.caption.bold())
             if expanded {
+                Text("Development · Debug(-Onone) · 진단 ON")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                Text("Production: Release · LLDB 없음 · GPU 검증 OFF")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.7))
                 Picker("진단 항목", selection: $page) {
                     Text("갱신").tag(0)
                     Text("부하").tag(1)

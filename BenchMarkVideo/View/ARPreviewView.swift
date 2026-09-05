@@ -1,7 +1,7 @@
 import ARKit
 import RealityKit
 import SwiftUI
-#if DEBUG
+#if SCAN_DIAGNOSTICS
 import Observation
 import os
 import QuartzCore
@@ -18,7 +18,7 @@ struct ARPreviewView: UIViewRepresentable {
     var showMesh: Bool = false
 
     func makeUIView(context: Context) -> ARView {
-        #if DEBUG
+        #if SCAN_DIAGNOSTICS
         FPSMonitor.shared.start()
         #endif
         let arView = ARView(frame: .zero)
@@ -43,7 +43,7 @@ struct ARPreviewView: UIViewRepresentable {
     }
 }
 
-#if DEBUG
+#if SCAN_DIAGNOSTICS
 /// UI fps 계측 — Xcode FPS 게이지 대체. 3초마다 평균·최저 fps를 perf 로그(콘솔)로 남긴다.
 /// R3-1 측정용, Release에는 미포함.
 @Observable

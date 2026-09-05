@@ -14,7 +14,7 @@
 | 파일/모듈 | 작성 주체 | 비고 |
 |---|---|---|
 | `Model/DepthFrameProcessor.swift` | LLM 초안 | unprojection 수식은 Apple 샘플의 flipYZ 방식 채택. 실기기 스케일 검증 완료 (1.4m 책상 실측 정합) |
-| `Model/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정. 성능 계측 절(`#if DEBUG`)은 LLM 생성, 측정은 사람이 수행 |
+| `Model/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정. 성능 계측 절(`#if SCAN_DIAGNOSTICS`)은 LLM 생성, 측정은 사람이 수행 |
 | `Model/OccupancyGrid.swift` | LLM 초안 | 격자 해상도(5cm)·높이 밴드 파라미터는 실기기 검증 결과 그대로 유지 판정 (바닥·천장 필터 cells 불변 실증) |
 | `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
 | `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
@@ -26,7 +26,7 @@
 | mesh 표시 문법("mesh 보임 = 기록 중")과 "주변 인식 중…" 배지 (`ScanEvent.meshReady`, `ContentView` 배지) | 사람 방법론 + LLM 구현 | 사람이 "스캔-메시 로딩 간극에 로딩 표시" 방법론 제시, LLM이 고정 타이머 대신 첫 `ARMeshAnchor` 신호 기반으로 다듬음 (사례 12) |
 | 실기기 검증 (46항목, 화면 녹화 22편) | 사람 촬영·관찰 + LLM 판독 | 사람: 시나리오 수행·촬영·이상 관찰 제보("미니맵이 갈피를 못 잡아"). LLM: 촬영 시나리오 설계, ffmpeg 프레임 추출 판독, 판정·문서 기입 (사례 13·14) |
 | 성능 자가 계측 (`FPSMonitor`, perf 로그)과 `perf-baseline` 비교 브랜치 | LLM 생성 | Instruments 실패 후 대체 설계 (사례 15). 측정 실행·콘솔 로그 제공은 사람 |
-| 녹화 진단 (`ScanDiagnostics`, `ScanDebugView`, 격자 비교·구간 기록) | 사용자 요청 + Codex 구현 | 녹화 화면에서 갱신 지연·누적 gate·부하·좌표·초기화 세대를 판독하도록 Debug 전용으로 구현. 촬영과 실기기 부하 판정은 사람 담당 |
+| 녹화 진단 (`ScanDiagnostics`, `ScanDebugView`, 격자 비교·구간 기록) | 사용자 요청 + Codex 구현 | 녹화 화면에서 갱신 지연·누적 gate·부하·좌표·초기화 세대를 판독하도록 `SCAN_DIAGNOSTICS` 전용으로 구현. 촬영과 실기기 부하 판정은 사람 담당 |
 | 2D/3D 통합 뷰어·mesh 미니맵 (`MeshBuilder`, `PointCloudViewerView`, `MeshTopDownView`) | 사람 레퍼런스·관찰 + LLM 설계·구현 | 사람이 목표 화면(스크린샷·영상)과 실기기 이상 관찰을 제보, LLM이 원인 특정·구현 (사례 17·18). 텍스처 베이킹 대신 정점 색 근사 채택은 비용 합의 |
 | 표시 문법 최종형 — 체크무늬=스캔 커버리지·전체화면 자동 일시정지·3D 표면 측정 | 사람 UX 정의 + LLM 대안 검토·구현 | "체크무늬 = 스캔되고 있는 곳" 멘탈 모델과 뒤틀림 해법(자동 일시정지)은 사람 제시, LLM이 대안 비교(재구성 게이트는 ARKit 앵커 삭제로 기각)·구현 (사례 19·20) |
 
@@ -169,6 +169,15 @@
 ### 녹화 진단 계측 보완 — 2026-09-05
 
 - 사용자: 녹화로 직접 판독할 수 있는 진단 UI와 별도 브랜치 작업을 요청.
-- Codex: Debug 전용 패널·처리 큐 계측·구간 기록·격자 비교 모드를 작성. GPU 완료와 UI 수신, 누적 허용 시간과 화면상 스캔 상태를 구분했다.
+- Codex: Development 진단 패널·처리 큐 계측·구간 기록·격자 비교 모드를 작성. GPU 완료와 UI 수신, 누적 허용 시간과 화면상 스캔 상태를 구분했다.
 - 기존 LLM 계측의 수정: 콜백 시간 배열은 누적 처리 30회마다 비워져 일시정지 중에는 계속 증가할 수 있었다. 코드 확인으로 발견해 최근 60개 상한을 추가했다. 새 패널은 배열 없이 약 0.5초 창의 합계·최댓값만 보관한다.
 - 실기기 화면 가독성·계측 부하·영상 판독은 아직 미검증이다.
+
+### Development와 Production의 진단 경계 분리 — 2026-09-05
+
+- 사용자: scheme 차이 가운데 UI 진단으로 분리할 수 있는 부분을 분명하게 정리하도록 요청.
+- Codex: 기존 진단 코드의 `DEBUG` 의존을 `SCAN_DIAGNOSTICS` 컴파일 조건으로 교체하고 Development
+  Debug 구성에만 정의했다. Production Release에는 조건이 없어 패널·계측이 컴파일되지 않는다.
+- 판단: 최적화·LLDB·Metal Validation은 빌드·실행 환경이므로 UI 토글로 옮기지 않았다. 패널에는
+  두 scheme의 실행 조건을 표시해 녹화 수치가 어느 환경에서 나온 것인지 판독할 수 있게 했다.
+- 재발 방지: `scripts/check-structure.sh`가 `SCAN_DIAGNOSTICS`의 Debug 단일 정의와 Release 미정의를 검사한다.
