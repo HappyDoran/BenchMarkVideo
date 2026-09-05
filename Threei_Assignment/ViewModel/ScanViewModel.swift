@@ -86,7 +86,11 @@ final class ScanViewModel {
     func start() {
         sessionManager.startAccumulating()
         state = .scanning
-        refreshLiveMesh()   // 다음 타이머 틱(최대 1.5초)을 기다리지 않고 즉시 1회 빌드 — mesh 표시 지연 제거
+        // 0.6초 뒤 1회 빌드 — 타이머 틱(최대 1.5초)보다 빠르되, 시작 순간의 와이어프레임
+        // 첫 렌더와 수만 정점 빌드·업로드가 겹쳐 GPU가 붐비지 않게 한 박자 미룬다.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            MainActor.assumeIsolated { self?.refreshLiveMesh() }
+        }
     }
 
     /// liveMesh 1회 갱신. 같은 직렬 큐라 startAccumulating의 hasStarted 설정 뒤에 실행된다.
