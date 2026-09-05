@@ -120,7 +120,7 @@ final class ScanViewModel {
         state = .ready
     }
 
-    /// 현재 격자를 .ply로 임시 파일에 써서 exportURL 발행 — 전체화면 미니맵의 공유 버튼용 (가산점: 내보내기).
+    /// 현재 격자를 .ply로 임시 파일에 써서 exportURL 발행 — 전체화면 미니맵의 공유 버튼용 (선택 요구사항: 내보내기).
     /// 쓰기 실패 시 URL을 발행하지 않는다 — 이전 스캔의 stale 파일이 공유되는 것을 막는다 (버튼 미표시).
     func prepareExport() {
         exportURL = nil

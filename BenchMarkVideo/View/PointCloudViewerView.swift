@@ -2,7 +2,7 @@ import SceneKit
 import simd
 import SwiftUI
 
-/// 스캔 점군 3D 뷰어 (가산점: 3D 재구성 뷰어).
+/// 스캔 점군 3D 뷰어 (선택 요구사항: 3D 재구성 뷰어).
 /// 새 렌더러를 만들지 않는다 — .ply 내보내기와 같은 점군(`GridPointCloud`)을
 /// SceneKit 점 지오메트리로 올리고, 회전·줌·팬은 `allowsCameraControl`에 맡긴다.
 /// 측정: 바닥 평면(y=0) 탭 → 월드 xz — 2D 미니맵과 같은 `measurePoints`를 공유해

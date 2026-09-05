@@ -163,7 +163,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **대안.**
 
-| 대안 | 평가 |
+| 대안 | 판정 |
 | --- | --- |
 | `ARPlaneAnchor`로 바닥 평면 추정 후 밴드 기준을 잡음 | 시작 높이 가정을 없애지만 평면 검출 지연과 앵커 갱신 처리가 추가된다. 되돌리기 1순위 |
 | 셀별 높이 분산 (수직으로 퍼지면 벽) | 셀마다 min/max y 저장이 필요해 메모리 2배, 가구 상판이 벽으로 분류됨 |
