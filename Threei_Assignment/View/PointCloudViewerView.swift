@@ -9,6 +9,8 @@ import SwiftUI
 /// 어느 모드에서 찍든 두 뷰에 함께 보이고 거리 계산도 동일하다.
 struct PointCloudViewerView: UIViewRepresentable {
     let cloud: GridPointCloud
+    /// 정점 색 mesh — 있으면 점군 대신 표시 (레퍼런스 앱 텍스처 뷰의 정점 색 근사).
+    var mesh: ColoredMesh? = nil
     @Binding var measurePoints: [SIMD2<Float>]
 
     /// 바닥 히트테스트 전용 카테고리 (점군과 분리).
@@ -18,7 +20,8 @@ struct PointCloudViewerView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
-        view.scene = Self.makeScene(cloud)
+        view.scene = Self.makeScene(cloud: cloud, mesh: mesh)
+        context.coordinator.contentSignature = Self.signature(cloud: cloud, mesh: mesh)
         view.allowsCameraControl = true          // 궤도 회전·핀치 줌·두 손가락 팬
         view.backgroundColor = .black
         view.addGestureRecognizer(UITapGestureRecognizer(
@@ -28,12 +31,23 @@ struct PointCloudViewerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: SCNView, context: Context) {
         context.coordinator.parent = self
+        // mesh가 뒤늦게 도착하면 장면 재구성 (같은 데이터면 카메라 자세 유지 위해 건드리지 않음)
+        let signature = Self.signature(cloud: cloud, mesh: mesh)
+        if context.coordinator.contentSignature != signature {
+            context.coordinator.contentSignature = signature
+            uiView.scene = Self.makeScene(cloud: cloud, mesh: mesh)
+        }
         context.coordinator.syncMarkers(in: uiView, points: measurePoints)
+    }
+
+    private static func signature(cloud: GridPointCloud, mesh: ColoredMesh?) -> Int {
+        (mesh?.positions.count ?? 0) &* 31 &+ cloud.positions.count
     }
 
     @MainActor
     final class Coordinator: NSObject {
         var parent: PointCloudViewerView
+        var contentSignature = 0
         init(_ parent: PointCloudViewerView) { self.parent = parent }
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
@@ -79,16 +93,22 @@ struct PointCloudViewerView: UIViewRepresentable {
         }
     }
 
-    private static func makeScene(_ cloud: GridPointCloud) -> SCNScene {
+    private static func makeScene(cloud: GridPointCloud, mesh: ColoredMesh?) -> SCNScene {
         let scene = SCNScene()
 
-        // 측정 탭 대상: 보이지 않는 바닥 평면 (y=0). 점 프리미티브는 히트테스트가 불안정해
+        // 측정 탭 대상: 보이지 않는 바닥 평면 (y=0). 점·삼각형 히트테스트 대신
         // 바닥 투영 측정으로 통일 — 2D 격자 측정과 같은 수평 거리 시맨틱.
         let floor = SCNNode(geometry: SCNPlane(width: 100, height: 100))
         floor.eulerAngles.x = -.pi / 2
         floor.opacity = 0.001   // 시각적으로 안 보이되 히트테스트에는 잡히게
         floor.categoryBitMask = floorCategory
         scene.rootNode.addChildNode(floor)
+
+        // 정점 색 mesh가 있으면 삼각형으로 — 점군보다 레퍼런스 앱에 가까운 인상.
+        if let mesh, !mesh.positions.isEmpty {
+            scene.rootNode.addChildNode(SCNNode(geometry: makeMeshGeometry(mesh)))
+            return scene
+        }
 
         guard !cloud.positions.isEmpty else { return scene }
 
@@ -130,5 +150,40 @@ struct PointCloudViewerView: UIViewRepresentable {
 
         scene.rootNode.addChildNode(SCNNode(geometry: geometry))
         return scene
+    }
+
+    /// ColoredMesh → 정점 색 삼각형 지오메트리. 조명 없이 색 그대로, 양면 렌더.
+    private static func makeMeshGeometry(_ mesh: ColoredMesh) -> SCNGeometry {
+        let count = mesh.positions.count
+        let vertexData = mesh.positions.withUnsafeBufferPointer { Data(buffer: $0) }
+        let vertexSource = SCNGeometrySource(
+            data: vertexData, semantic: .vertex, vectorCount: count,
+            usesFloatComponents: true, componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0, dataStride: MemoryLayout<SIMD3<Float>>.stride)
+
+        var colorFloats = [Float](); colorFloats.reserveCapacity(count * 3)
+        for c in mesh.colors {
+            colorFloats.append(Float(c.x) / 255)
+            colorFloats.append(Float(c.y) / 255)
+            colorFloats.append(Float(c.z) / 255)
+        }
+        let colorSource = colorFloats.withUnsafeBufferPointer { buf in
+            SCNGeometrySource(
+                data: Data(buffer: buf), semantic: .color, vectorCount: count,
+                usesFloatComponents: true, componentsPerVector: 3,
+                bytesPerComponent: MemoryLayout<Float>.size,
+                dataOffset: 0, dataStride: MemoryLayout<Float>.stride * 3)
+        }
+
+        let element = mesh.indices.withUnsafeBufferPointer { buf in
+            SCNGeometryElement(data: Data(buffer: buf), primitiveType: .triangles,
+                               primitiveCount: mesh.indices.count / 3,
+                               bytesPerIndex: MemoryLayout<Int32>.size)
+        }
+        let geometry = SCNGeometry(sources: [vertexSource, colorSource], elements: [element])
+        geometry.firstMaterial?.lightingModel = .constant
+        geometry.firstMaterial?.isDoubleSided = true
+        return geometry
     }
 }

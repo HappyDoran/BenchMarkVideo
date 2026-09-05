@@ -21,8 +21,10 @@ final class ScanViewModel {
     private(set) var isMeshReady = false
     /// 내보내기용 .ply 임시 파일 — 전체화면 진입 시 생성, ShareLink가 소비.
     private(set) var exportURL: URL?
-    /// 3D 뷰어용 점군 — 뷰어 열 때 생성.
+    /// 3D 뷰어용 점군 — 뷰어 열 때 생성. mesh가 비었을 때의 fallback.
     private(set) var pointCloud: GridPointCloud?
+    /// 3D 뷰어용 정점 색 mesh — 있으면 점군 대신 표시.
+    private(set) var coloredMesh: ColoredMesh?
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
     private(set) var fatalMessage: String?
     private(set) var isPermissionDenied = false
@@ -101,12 +103,18 @@ final class ScanViewModel {
         }
     }
 
-    /// 현재 격자 점군을 발행 — 3D 뷰어(가산점: 3D 재구성 뷰어) 진입 시 호출.
+    /// 3D 뷰어 데이터 준비 — 정점 색 mesh(우선)와 점군(fallback)을 발행.
     func preparePointCloud() {
         pointCloud = nil
+        coloredMesh = nil
         sessionManager.exportPointCloud { [weak self] cloud in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.pointCloud = cloud }
+            }
+        }
+        sessionManager.exportColoredMesh { [weak self] mesh in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.coloredMesh = mesh }
             }
         }
     }

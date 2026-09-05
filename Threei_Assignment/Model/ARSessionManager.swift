@@ -37,6 +37,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private let processingQueue = DispatchQueue(label: "scan.processing")
     private weak var session: ARSession?
     private let grid = OccupancyGrid()
+    /// 3D 뷰어 정점 색용 월드 복셀 색 (processingQueue 전용).
+    private let voxelColors = VoxelColorStore()
 
     // processingQueue에서만 접근
     private var isAccumulating = false
@@ -157,6 +159,14 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async { completion(GridExporter.pointCloud(grid: self.grid)) }
     }
 
+    /// 현재 ARKit mesh 앵커 + 복셀 색 → 정점 색 mesh (3D 뷰어). 앵커 스냅샷·색 조회 전부 큐에서.
+    func exportColoredMesh(_ completion: @escaping @Sendable (ColoredMesh) -> Void) {
+        processingQueue.async {
+            let anchors = self.session?.currentFrame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
+            completion(MeshBuilder.coloredMesh(anchors: anchors, colors: self.voxelColors))
+        }
+    }
+
     /// 그리드·궤적·트래킹 전부 초기화.
     func reset() {
         processingQueue.async {
@@ -164,6 +174,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.hasStarted = false
             self.scanOriginY = nil
             self.grid.reset()
+            self.voxelColors.reset()
             self.trajectory = []
             self.trajectoryStride = Self.trajectoryStep
             self.lastHeading = 0
@@ -243,6 +254,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     imageResolution: frame.camera.imageResolution,
                     cameraTransform: transform)
                 grid.accumulate(points: points, originY: scanOriginY ?? 0)
+                voxelColors.accumulate(points: points)   // 3D 뷰어 정점 색
                 #if DEBUG
                 debugProcessedCount += 1
                 if debugProcessedCount % 30 == 0, !debugCallbackMs.isEmpty {

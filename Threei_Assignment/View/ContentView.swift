@@ -212,7 +212,8 @@ struct ContentView: View {
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                 } else if let cloud = viewModel.pointCloud {
-                    PointCloudViewerView(cloud: cloud, measurePoints: $measurePoints)
+                    PointCloudViewerView(cloud: cloud, mesh: viewModel.coloredMesh,
+                                         measurePoints: $measurePoints)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
