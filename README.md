@@ -27,7 +27,7 @@ open Threei_Assignment.xcodeproj
    - `Threei_Assignment-Development` — 개발·디버깅용. Debug + LLDB. 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이 수 배 느린 것이 정상이다.
 2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `io.tenkm.doran.lidarscan`, 필요하면 변경).
 3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
-4. 첫 실행 시 카메라 권한을 허용한다. 화면 하단 "스캔 시작"을 누르면 우상단 미니맵이 채워진다.
+4. 첫 실행 시 카메라 권한을 허용한다. 우하단 "스캔 시작"을 누르면 좌하단 미니맵이 채워진다.
 
 시뮬레이터에서는 `sceneDepth`가 nil이라 "지원되지 않는 기기" 화면이 뜬다. 단위 테스트만 시뮬레이터에서 돈다.
 
@@ -78,7 +78,7 @@ open Threei_Assignment.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 24건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화 |
+| 테스트 코드 (+2) | ✅ `Threei_AssignmentTests/` 28건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA |
 | auto-fit, 이동 궤적 | ✅ 위 R2 표 |
 | 성능 최적화 전후 비교 (+2) | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
 | 거리·면적 측정 (+2) | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
@@ -128,14 +128,14 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 - 트래킹이 limited인 동안 누적·궤적 기록을 중단한다(normal 게이트). 단 극단적으로 흔들면 ARKit이 normal을 유지한 채 포즈가 오염돼 유령 셀·궤적 뻗침이 생길 수 있다 — 게이트로 걸러지지 않으며 초기화로 복구한다.
 - `excessiveMotion` 경고는 iPhone 15 Pro에서 유발 불가였다 (트래킹이 흔들기에 강함). 경고 경로 자체는 `insufficientFeatures`로 실증.
 - 트래킹 회복 직후 새 영역의 mesh는 ARKit 재구성 재개까지 수 초 뒤에 나타난다. 기존 영역은 즉시 보인다.
-- 미니맵 팬·줌·회전 없음. 전체화면 전환만.
+- 미니맵 회전 없음 — north-up 고정 원칙(R2-5). 팬·줌은 전체화면 세계 창으로 지원.
 
 ## 검증
 
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ```bash
-# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 24건
+# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 28건
 xcodebuild test -project Threei_Assignment.xcodeproj -scheme Threei_Assignment-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
@@ -164,7 +164,7 @@ scripts/check-structure.sh
 | 초기화 | R1-2 | 미니맵 비워지고 "대기" 상태, 궤적 사라짐 | 통과 |
 | 실시간 갱신 | R2-1 | 걸으면서 미니맵이 1초 안에 따라 채워짐 | 통과 |
 | 미니맵 방향 | R2-3, R2-5 | 기기를 제자리에서 회전 → 맵은 고정, 마커 삼각형만 회전 (north-up) | 통과 |
-| 오버레이 중심 고정 | R2-3, R2-4 | 걸어 다녀도 오버레이의 마커는 중앙, 맵이 밑에서 흐름. 창 배경이 균일하고(어두운 사각형 없음) 반경 3m 밖은 사라졌다가 되돌아가면 다시 나타남. 전체화면은 관측 영역 전체가 보임 | 통과 |
+| 오버레이 중심 고정 | R2-3, R2-4 | 걸어 다녀도 오버레이의 마커는 중앙, 맵이 밑에서 흐름. 창 배경이 균일하고(어두운 사각형 없음) 반경 2m 밖은 사라졌다가 되돌아가면 다시 나타남. 전체화면은 관측 영역 auto-fit + 팬·줌 | 통과 |
 | 미니맵 색상 | R2-2 | 관측 셀이 카메라에 비친 색으로 칠해짐 — 벽 원색, 바닥 절반 밝기. 흰색 단색이 아님 | 통과 |
 | 스케일 | R2-2 | 알려진 길이의 물체를 스캔 → 미니맵 셀 폭 환산이 실측과 정합 | 통과 (1.4m 책상, 오버레이 창 픽셀 측정 ±20%) |
 | 바닥·천장 필터 | R2-2 | 바닥을 향해 스캔해도 벽(밝은 픽셀)이 생기지 않고, 천장은 무시 | 통과 (바닥: cells 불변 실증 / 천장: cells 3,658→3,660) |

@@ -1,7 +1,7 @@
 ---
 title: 현재 폴더 구성 스냅샷
 kind: snapshot
-last_verified: 2026-09-04
+last_verified: 2026-09-05
 ---
 
 # 현재 폴더 구성 스냅샷
@@ -28,7 +28,9 @@ last_verified: 2026-09-04
 ├── .claude/skills/<name>/SKILL.md -> ../../../.codex/skills/<name>/SKILL.md
 ├── scripts/check-structure.sh        # 구조·문서 계약 검사
 ├── Threei_Assignment.xcodeproj/      # PBXFileSystemSynchronizedRootGroup — 디스크 = 타깃
-│   └── xcshareddata/xcschemes/Threei_Assignment.xcscheme   # 공유 scheme (build + test)
+│   └── xcshareddata/xcschemes/           # 공유 scheme 2개
+│       ├── Threei_Assignment-Development.xcscheme   # Debug + 테스트
+│       └── Threei_Assignment-Production.xcscheme    # Release 실사용
 ├── Threei_AssignmentTests/           # XCTest 타깃, Model 계층만 대상, 시뮬레이터 실행
 │   ├── DepthFrameProcessorTests.swift    # intrinsics 스케일, flipYZ, column-major, heading, 버퍼 필터
 │   ├── OccupancyGridTests.swift          # cellIndex, 벽/바닥/천장 분기, bounds, reset
