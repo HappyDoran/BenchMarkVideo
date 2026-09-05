@@ -80,6 +80,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     /// 메시 재구성 활성 여부 — 제어 메서드(메인 스레드)에서만 접근.
     private var meshEnabled = false
+    /// attach 후 첫 스캔 시작인가 — 예열이 쌓아 둔 스캔 전 mesh를 리셋할 시점 판정 (메인 전용).
+    private var isFirstStartSinceAttach = true
 
     /// ARView 생성 시 호출 — ARView 소유 세션에 연결하고 실행.
     /// 첫 구성은 mesh 없이 시작 — RealityKit 셰이더 컴파일을 줄여 카메라 표시를 앞당긴다.
@@ -94,6 +96,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.didReportMeshReady = false    // 새 세션 = 앵커 없음
             self.awaitingMeshClear = false
         }
+        isFirstStartSinceAttach = true
         runSession(reset: false, withMesh: false)
         #if DEBUG
         print("[scan] session attached & running. sceneDepth supported: \(Self.isDeviceSupported)")
@@ -142,7 +145,24 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     // MARK: - 스캔 제어 (스캔 상태만 제어 — 세션은 계속 돌려 트래킹 유지)
 
     func startAccumulating() {
-        enableMeshIfNeeded()
+        // 첫 시작: 예열이 스캔 전에 쌓아 둔 mesh를 비우고 재구성을 새로 시작 —
+        // "체크무늬 = 이번 스캔에서 훑은 곳"으로 사용자 멘탈 모델과 정렬 (초기화 후 시작과 같은 UX,
+        // 재생성 ~1초 공백은 '주변 인식 중…' 배지가 커버). 셰이더 예열 효과는 유지된다.
+        if isFirstStartSinceAttach {
+            isFirstStartSinceAttach = false
+            processingQueue.async { self.awaitingMeshClear = true; self.didReportMeshReady = false }
+            if let session {
+                let config = ARWorldTrackingConfiguration()
+                config.frameSemantics = .smoothedSceneDepth
+                if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+                    config.sceneReconstruction = .mesh
+                }
+                meshEnabled = true
+                session.run(config, options: [.resetSceneReconstruction])  // 트래킹·앵커는 유지, mesh만 리셋
+            }
+        } else {
+            enableMeshIfNeeded()
+        }
         processingQueue.async { self.isAccumulating = true; self.hasStarted = true }
     }
 
@@ -207,6 +227,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         }
         // 카메라는 이미 떠 있으므로 mesh를 바로 켠 채 재시작 — 구성 교체 한 번을 아낀다.
         // 남는 지연은 resetSceneReconstruction 후 ARKit이 첫 mesh 앵커를 만드는 시간(약 1초).
+        isFirstStartSinceAttach = false   // 여기서 이미 mesh를 리셋 — 다음 시작에서 중복 리셋 방지
         runSession(reset: true, withMesh: true)
     }
 
