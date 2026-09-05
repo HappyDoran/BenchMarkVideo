@@ -22,7 +22,7 @@ struct MinimapView: View {
                     let (scale, offset) = mapTransform(snapshot, side: side)
                     if let cgImage = snapshot.image {
                         Image(decorative: cgImage, scale: 1)
-                            .interpolation(.none)   // 셀 경계 선명하게
+                            .interpolation(.medium)   // 셀 경계를 부드럽게 — .none은 도트맵처럼 보임 (실기기 피드백)
                             .resizable()
                             .frame(width: side, height: side)
                             .scaleEffect(scale, anchor: .topLeading)

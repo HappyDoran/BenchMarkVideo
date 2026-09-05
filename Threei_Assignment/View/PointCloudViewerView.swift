@@ -100,7 +100,9 @@ struct PointCloudViewerView: UIViewRepresentable {
         // 바닥 투영 측정으로 통일 — 2D 격자 측정과 같은 수평 거리 시맨틱.
         let floor = SCNNode(geometry: SCNPlane(width: 100, height: 100))
         floor.eulerAngles.x = -.pi / 2
-        floor.opacity = 0.001   // 시각적으로 안 보이되 히트테스트에는 잡히게
+        // isHidden: 렌더에서 완전 제외 — opacity 트릭은 depth buffer에 남아 낮은 각도·아래 시점에서
+        // mesh를 절반 가리는 결함이 있었다 (히트테스트는 ignoreHiddenNodes: false로 여전히 잡힘).
+        floor.isHidden = true
         floor.categoryBitMask = floorCategory
         scene.rootNode.addChildNode(floor)
 
