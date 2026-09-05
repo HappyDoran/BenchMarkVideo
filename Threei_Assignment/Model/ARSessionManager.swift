@@ -152,6 +152,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async { completion(GridExporter.ply(grid: self.grid)) }
     }
 
+    /// 현재 격자를 점군 값으로 — 3D 뷰어용. 스레드 규약은 exportPly와 동일.
+    func exportPointCloud(_ completion: @escaping @Sendable (GridPointCloud) -> Void) {
+        processingQueue.async { completion(GridExporter.pointCloud(grid: self.grid)) }
+    }
+
     /// 그리드·궤적·트래킹 전부 초기화.
     func reset() {
         processingQueue.async {

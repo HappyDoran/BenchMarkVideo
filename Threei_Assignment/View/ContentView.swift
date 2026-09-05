@@ -8,6 +8,13 @@ struct ContentView: View {
     @State private var isMinimapExpanded = false
     /// 거리 측정 점(월드 xz, 최대 2개) — 전체화면에서 탭으로 지정, 세 번째 탭은 새 측정 시작.
     @State private var measurePoints: [SIMD2<Float>] = []
+    /// 전체화면 팬·줌 상태. 제스처 진행 중 기준값은 base에 고정.
+    @State private var mapZoom: CGFloat = 1
+    @State private var mapPan: CGSize = .zero
+    @State private var baseZoom: CGFloat = 1
+    @State private var basePan: CGSize = .zero
+    /// 3D 점군 뷰어 표시 여부.
+    @State private var showPointCloudViewer = false
     /// ARView(RealityKit 엔진) 생성은 메인 스레드를 수 초 블로킹 —
     /// 첫 프레임을 먼저 그리고 나서 마운트해 흰 런치 화면 체류를 없앤다.
     @State private var isARMounted = false
@@ -170,11 +177,24 @@ struct ContentView: View {
                 .onTapGesture { closeExpandedMinimap() }
             VStack(spacing: 12) {
                 GeometryReader { geo in
-                    MinimapView(snapshot: viewModel.snapshot)
+                    MinimapView(snapshot: viewModel.snapshot, zoomScale: mapZoom, panOffset: mapPan)
                         .overlay { measureOverlay(side: geo.size.width) }
                         .onTapGesture(coordinateSpace: .local) { p in
                             addMeasurePoint(p, side: geo.size.width)
                         }
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { mapZoom = min(max(baseZoom * $0, 1), 8) }
+                                .onEnded { _ in baseZoom = mapZoom }
+                        )
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged {
+                                    mapPan = CGSize(width: basePan.width + $0.translation.width,
+                                                    height: basePan.height + $0.translation.height)
+                                }
+                                .onEnded { _ in basePan = mapPan }
+                        )
                 }
                 .aspectRatio(1, contentMode: .fit)
                 .frame(maxWidth: .infinity)
@@ -188,37 +208,67 @@ struct ContentView: View {
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
 
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     if let url = viewModel.exportURL {
                         ShareLink(item: url) {
-                            Label("내보내기", systemImage: "square.and.arrow.up")
-                                .font(.body.weight(.semibold))
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .foregroundStyle(.white)
+                            expandedButtonLabel("내보내기", icon: "square.and.arrow.up")
                         }
+                    }
+                    Button {
+                        viewModel.preparePointCloud()
+                        showPointCloudViewer = true
+                    } label: {
+                        expandedButtonLabel("3D", icon: "cube.transparent")
                     }
                     Button {
                         closeExpandedMinimap()
                     } label: {
-                        Label("닫기", systemImage: "xmark")
-                            .font(.body.weight(.semibold))
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .foregroundStyle(.white)
+                        expandedButtonLabel("닫기", icon: "xmark")
                     }
                 }
             }
             .padding(24)
         }
         .onAppear { viewModel.prepareExport() }
+        .fullScreenCover(isPresented: $showPointCloudViewer) { pointCloudViewer }
+    }
+
+    private func expandedButtonLabel(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(.body.weight(.semibold))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+            .foregroundStyle(.white)
+    }
+
+    /// 3D 점군 뷰어 (가산점: 3D 재구성 뷰어) — 회전·줌·팬은 SceneKit 기본 카메라 컨트롤.
+    private var pointCloudViewer: some View {
+        ZStack(alignment: .topTrailing) {
+            if let cloud = viewModel.pointCloud {
+                PointCloudViewerView(cloud: cloud)
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+                ProgressView("점군 준비 중…")
+                    .tint(.white)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            Button {
+                showPointCloudViewer = false
+            } label: {
+                expandedButtonLabel("닫기", icon: "xmark")
+            }
+            .padding()
+        }
     }
 
     private func closeExpandedMinimap() {
         isMinimapExpanded = false
         measurePoints = []
+        mapZoom = 1; mapPan = .zero
+        baseZoom = 1; basePan = .zero
     }
 
     // MARK: - 거리 측정 (전체화면 전용 — 항등 변환이라 뷰 좌표/side = 정규화 좌표)
@@ -233,7 +283,10 @@ struct ContentView: View {
 
     private func addMeasurePoint(_ p: CGPoint, side: CGFloat) {
         guard side > 0, let snapshot = viewModel.snapshot else { return }
-        let world = snapshot.worldPoint(normalized: CGPoint(x: p.x / side, y: p.y / side))
+        // 팬·줌 역변환: 뷰 좌표 → (팬 제거, 줌 나눔) → 정규화 좌표
+        let n = CGPoint(x: (p.x - mapPan.width) / mapZoom / side,
+                        y: (p.y - mapPan.height) / mapZoom / side)
+        let world = snapshot.worldPoint(normalized: n)
         measurePoints = measurePoints.count >= 2 ? [world] : measurePoints + [world]
     }
 
@@ -242,7 +295,8 @@ struct ContentView: View {
             guard let snapshot = viewModel.snapshot else { return }
             let points = measurePoints.map { w -> CGPoint in
                 let n = snapshot.normalizedPoint(w)
-                return CGPoint(x: n.x * side, y: n.y * side)
+                return CGPoint(x: n.x * side * mapZoom + mapPan.width,
+                               y: n.y * side * mapZoom + mapPan.height)
             }
             if points.count == 2 {
                 var line = Path()

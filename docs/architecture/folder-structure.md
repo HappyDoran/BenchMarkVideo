@@ -43,13 +43,14 @@ last_verified: 2026-09-04
     │   ├── DepthFrameProcessor.swift     # depth → 월드 점 unprojection, heading (순수 함수)
     │   ├── OccupancyGrid.swift           # 5cm × 400×400 hit 격자, 높이 밴드 필터
     │   ├── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
-    │   └── GridExporter.swift            # 격자 → .ply 점군 텍스트 (내보내기)
+    │   └── GridExporter.swift            # 격자 → 점군(GridPointCloud)·.ply 텍스트 (뷰어·내보내기 공용)
     ├── ViewModel/                        # MainActor
     │   └── ScanViewModel.swift           # @Observable 상태 허브, ScanState, 세션 attach 중계
     ├── View/                             # SwiftUI, ViewModel과 불변 스냅샷만 참조
     │   ├── ContentView.swift             # 화면 조립, 상태바, 제어 버튼, 예외 화면
     │   ├── ARPreviewView.swift           # UIViewRepresentable — ARView 생성, 세션 콜백
-    │   └── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas
+    │   ├── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas, 전체화면 팬·줌 변환
+    │   └── PointCloudViewerView.swift    # SceneKit 점군 3D 뷰어 (회전·줌·팬)
     └── Assets.xcassets/
 ```
 

@@ -4,6 +4,18 @@ import simd
 
 final class GridExporterTests: XCTestCase {
 
+    func testPointCloudMatchesPlySource() {
+        let grid = OccupancyGrid()
+        let wall = ScanPoint(position: .zero, color: SIMD3(10, 20, 30))
+        grid.accumulate(points: [wall, wall, wall])
+        let cloud = GridExporter.pointCloud(grid: grid)
+        XCTAssertEqual(cloud.positions.count, 1)
+        XCTAssertEqual(cloud.positions[0], SIMD3(0, GridExporter.wallExportHeight, 0))
+        XCTAssertEqual(cloud.colors[0], SIMD3(10, 20, 30))
+        // .ply vertex 수 = 점군 수 (같은 소스에서 파생)
+        XCTAssertTrue(GridExporter.ply(grid: grid).contains("element vertex \(cloud.positions.count)"))
+    }
+
     func testEmptyGridExportsHeaderWithZeroVertices() {
         let text = GridExporter.ply(grid: OccupancyGrid())
         XCTAssertTrue(text.hasPrefix("ply\nformat ascii 1.0"))

@@ -8,6 +8,9 @@ import SwiftUI
 struct MinimapView: View {
     let snapshot: MinimapSnapshot?
     var visibleRadius: Float? = nil
+    /// 전체화면 팬·줌 (visibleRadius가 nil일 때만 적용). 오버레이 창은 카메라 추종 변환이 우선.
+    var zoomScale: CGFloat = 1
+    var panOffset: CGSize = .zero
 
     var body: some View {
         GeometryReader { geo in
@@ -43,9 +46,11 @@ struct MinimapView: View {
     }
 
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
-    /// visibleRadius가 nil이면 항등 (auto-fit 이미지 그대로).
+    /// visibleRadius가 nil이면 사용자 팬·줌(기본 항등) — 전체화면 제스처가 같은 변환 경로를 탄다.
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
-        guard let visibleRadius else { return (1, .zero) }
+        guard let visibleRadius else {
+            return (zoomScale, CGPoint(x: panOffset.width, y: panOffset.height))
+        }
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))
         let n = snapshot.normalizedPoint(snapshot.cameraPosition)
         return (scale, CGPoint(x: side * (0.5 - n.x * scale), y: side * (0.5 - n.y * scale)))
