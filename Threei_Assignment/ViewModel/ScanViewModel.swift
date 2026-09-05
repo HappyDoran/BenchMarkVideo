@@ -23,9 +23,7 @@ final class ScanViewModel {
     private(set) var exportURL: URL?
     /// 3D 뷰어용 점군 — 뷰어 열 때 생성. mesh가 비었을 때의 fallback.
     private(set) var pointCloud: GridPointCloud?
-    /// 3D 뷰어용 정점 색 mesh — 있으면 점군 대신 표시.
-    private(set) var coloredMesh: ColoredMesh?
-    /// 오버레이 미니맵 배경용 실시간 mesh — 1.5초 주기 갱신.
+    /// 미니맵 배경·3D 뷰어 공용 실시간 mesh — 1.5초 주기, 입력 변경 시에만 재빌드·발행.
     private(set) var liveMesh: ColoredMesh?
     private var meshRefreshTimer: Timer?
     /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
@@ -81,6 +79,7 @@ final class ScanViewModel {
         meshRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.sessionManager.exportColoredMesh { mesh in
+                    guard let mesh else { return }   // 미변경·스캔 전 — 기존 값 유지
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated { self?.liveMesh = mesh }
                     }
@@ -103,6 +102,9 @@ final class ScanViewModel {
 
     func reset() {
         sessionManager.reset()
+        liveMesh = nil       // 옛 방 mesh 잔상 즉시 제거 — 다음 빌드까지 격자 fallback
+        pointCloud = nil
+        exportURL = nil
         // snapshot은 여기서 nil로 만들지 않는다 — 처리 큐(직렬)가 곧 빈 스냅샷을 발행하고,
         // nil로 만들면 "카메라 준비 중…" 오버레이가 라이브 카메라 위에 오발되고
         // 그 사이 도착하는 옛 그리드 스냅샷이 한 프레임 되살아난다.
@@ -111,29 +113,24 @@ final class ScanViewModel {
     }
 
     /// 현재 격자를 .ply로 임시 파일에 써서 exportURL 발행 — 전체화면 미니맵의 공유 버튼용 (가산점: 내보내기).
+    /// 쓰기 실패 시 URL을 발행하지 않는다 — 이전 스캔의 stale 파일이 공유되는 것을 막는다 (버튼 미표시).
     func prepareExport() {
         exportURL = nil
         sessionManager.exportPly { [weak self] text in
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("scan.ply")
-            try? text.write(to: url, atomically: true, encoding: .utf8)
+            let written = (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.exportURL = url }
+                MainActor.assumeIsolated { self?.exportURL = written ? url : nil }
             }
         }
     }
 
-    /// 3D 뷰어 데이터 준비 — 정점 색 mesh(우선)와 점군(fallback)을 발행.
+    /// 3D 뷰어 점군 fallback 준비 — mesh는 liveMesh(주기 갱신)를 그대로 쓴다.
     func preparePointCloud() {
         pointCloud = nil
-        coloredMesh = nil
         sessionManager.exportPointCloud { [weak self] cloud in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.pointCloud = cloud }
-            }
-        }
-        sessionManager.exportColoredMesh { [weak self] mesh in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.coloredMesh = mesh }
             }
         }
     }

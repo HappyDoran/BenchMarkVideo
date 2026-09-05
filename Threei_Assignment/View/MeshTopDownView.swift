@@ -52,10 +52,9 @@ struct MeshTopDownView: UIViewRepresentable {
                          up: SIMD3(0, 0, -1), localFront: SIMD3(0, 0, -1))
             cam.camera?.orthographicScale = Double(visibleRadius)
         }
-        // mesh: 정점 수가 바뀌었을 때만 재구성 (1~2초 주기 갱신)
-        let count = mesh?.positions.count ?? 0
-        if coordinator.meshSignature != count, let mesh {
-            coordinator.meshSignature = count
+        // mesh: 빌드 버전이 바뀌었을 때만 재구성 — 정점 수는 같아도 색·기하가 갱신될 수 있다
+        if let mesh, coordinator.meshSignature != mesh.version {
+            coordinator.meshSignature = mesh.version
             coordinator.meshNode?.geometry = PointCloudViewerView.makeMeshGeometry(mesh)
         }
     }

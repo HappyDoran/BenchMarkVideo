@@ -61,6 +61,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     private var didReportMeshReady = false
     /// 재로컬라이즈 → normal 전이 감지 플래그 (트래킹 콜백에서 set, 프레임에서 소비).
     private var pendingRelocalizationSettle = false
+    /// reset 직후 구 세션 프레임(옛 mesh 앵커 보유)이 meshReady를 오발하지 않게 —
+    /// mesh 앵커가 0인 프레임(= 교체 완료)을 한 번 본 뒤에만 감지를 재무장한다.
+    private var awaitingMeshClear = false
+    /// 마지막 mesh 빌드의 입력 서명(앵커 수 + 누적 점 수) — 미변경 시 재빌드 생략 (발열·큐 경합 방지).
+    private var lastMeshInputSignature = -1
+    private var meshBuildCount = 0
     /// 이 시각 전까지 누적·궤적 보류 (재로컬라이즈 안정화 구간).
     private var settleUntil: TimeInterval = 0
 
@@ -86,6 +92,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async {
             self.didRequestMeshWarmUp = false  // retry로 ARView가 재생성될 때도 예열
             self.didReportMeshReady = false    // 새 세션 = 앵커 없음
+            self.awaitingMeshClear = false
         }
         runSession(reset: false, withMesh: false)
         #if DEBUG
@@ -159,11 +166,21 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         processingQueue.async { completion(GridExporter.pointCloud(grid: self.grid)) }
     }
 
-    /// 현재 ARKit mesh 앵커 + 복셀 색 → 정점 색 mesh (3D 뷰어). 앵커 스냅샷·색 조회 전부 큐에서.
-    func exportColoredMesh(_ completion: @escaping @Sendable (ColoredMesh) -> Void) {
+    /// 현재 ARKit mesh 앵커 + 복셀 색 → 정점 색 mesh (미니맵 배경·3D 뷰어 공용).
+    /// 메인 스레드에서 호출 — session 참조를 여기(main)서 캡처해 attach의 쓰기와 경합하지 않는다.
+    /// 스캔 전이거나 입력(앵커 수·누적 점 수)이 직전 빌드와 같으면 nil — 호출부는 기존 값 유지.
+    func exportColoredMesh(_ completion: @escaping @Sendable (ColoredMesh?) -> Void) {
+        let session = self.session
         processingQueue.async {
-            let anchors = self.session?.currentFrame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
-            completion(MeshBuilder.coloredMesh(anchors: anchors, colors: self.voxelColors))
+            guard self.hasStarted else { completion(nil); return }
+            let anchors = session?.currentFrame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
+            let signature = anchors.count &* 1_000_003 &+ self.grid.totalPoints
+            guard signature != self.lastMeshInputSignature else { completion(nil); return }
+            self.lastMeshInputSignature = signature
+            self.meshBuildCount += 1
+            var mesh = MeshBuilder.coloredMesh(anchors: anchors, colors: self.voxelColors)
+            mesh.version = self.meshBuildCount
+            completion(mesh)
         }
     }
 
@@ -182,6 +199,8 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             self.pendingRelocalizationSettle = false
             self.settleUntil = 0
             self.didReportMeshReady = false  // resetSceneReconstruction으로 앵커가 지워짐 — 재생성 감지 재무장
+            self.awaitingMeshClear = true    // 구 세션 프레임의 옛 앵커로 오발하지 않게 — 앵커 0 프레임 후 재무장
+            self.lastMeshInputSignature = -1
             // 초기화 직후 빈 스냅샷 발행 — 큐에 남아 있던 프레임의 옛 그리드 잔상을 즉시 덮음
             self.onSnapshot?(MinimapRenderer.render(grid: self.grid, cameraPosition: .zero,
                                                     cameraHeading: 0, trajectory: []))
@@ -225,7 +244,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // meshReady: 프레임 앵커 스냅샷의 없음→있음 전이로 감지. didAdd 콜백 대신 프레임 기준인 이유 —
         // 프레임은 세션 상태와 일관되고 이 큐(직렬)에서만 읽으므로, reset 직후 구 세션 앵커의
         // didAdd가 플래그 클리어 뒤에 끼어들어 가짜 이벤트를 쏘고 가드를 재무장하는 경합이 없다.
-        if !didReportMeshReady, frame.anchors.contains(where: { $0 is ARMeshAnchor }) {
+        let hasMeshAnchor = frame.anchors.contains(where: { $0 is ARMeshAnchor })
+        if awaitingMeshClear {
+            // reset 직후: 옛 앵커를 아직 든 구 프레임은 무시, 앵커가 지워진 프레임을 보고서야 재무장
+            if !hasMeshAnchor { awaitingMeshClear = false }
+        } else if !didReportMeshReady, hasMeshAnchor {
             didReportMeshReady = true
             onEvent?(.meshReady)
         }
@@ -282,9 +305,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         if hasStarted, !isSettling, case .normal = frame.camera.trackingState,
            trajectory.last.map({ simd_distance($0, position) >= trajectoryStride }) ?? true {
             trajectory.append(position)
-            // 상한 도달 시 절반 솎고 간격 배가 — 격자처럼 메모리·복사 비용을 고정
+            // 상한 도달 시 절반 솎고 간격 배가 — 격자처럼 메모리·복사 비용을 고정.
+            // 마지막 점(현재 위치)은 짝수 stride에서 탈락할 수 있어 명시 보존.
             if trajectory.count >= Self.trajectoryMaxPoints {
-                trajectory = Swift.stride(from: 0, to: trajectory.count, by: 2).map { trajectory[$0] }
+                var decimated = Swift.stride(from: 0, to: trajectory.count, by: 2).map { trajectory[$0] }
+                if (trajectory.count - 1) % 2 != 0, let last = trajectory.last { decimated.append(last) }
+                trajectory = decimated
                 trajectoryStride *= 2
             }
         }

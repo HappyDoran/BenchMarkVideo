@@ -31,7 +31,7 @@ nonisolated final class OccupancyGrid {
     /// 데이터가 존재하는 셀 범위 (렌더링 crop용). nil = 아직 비어 있음.
     private(set) var usedBounds: (minCol: Int, maxCol: Int, minRow: Int, maxRow: Int)?
     private(set) var totalPoints = 0
-    /// 관측된 셀 수 — 커버리지 피드백용.
+    /// 관측된 셀 수 — 커버리지 피드백용. 렌더 임계값(wall 3/floor 2)을 넘은 셀만 집계.
     private(set) var occupiedCellCount = 0
 
     /// 월드 (x, z) → 연속 셀 좌표 (반올림·경계 처리 전).
@@ -64,12 +64,15 @@ nonisolated final class OccupancyGrid {
             let isWall = Self.wallBand.contains(relY)
             guard isWall || relY < Self.floorBelow else { continue }  // 천장
             let isNewCell = wallHits[idx] == 0 && floorHits[idx] == 0
-            if isNewCell { occupiedCellCount += 1 }
+            // 관측 면적은 렌더 임계값과 같은 기준으로 집계 — 1회 히트 노이즈 셀이 라벨을 부풀리지 않게
+            let wasVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
             if isWall {
                 if wallHits[idx] < .max { wallHits[idx] += 1 }
             } else {
                 if floorHits[idx] < .max { floorHits[idx] += 1 }
             }
+            let nowVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
+            if !wasVisible && nowVisible { occupiedCellCount += 1 }
             colors[idx] = isNewCell ? sp.color
                 : SIMD3<UInt8>(truncatingIfNeeded: (SIMD3<UInt16>(truncatingIfNeeded: colors[idx]) &* 3 &+ SIMD3<UInt16>(truncatingIfNeeded: sp.color)) / 4)
             totalPoints += 1

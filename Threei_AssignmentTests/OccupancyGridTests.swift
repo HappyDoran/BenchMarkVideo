@@ -30,14 +30,18 @@ final class OccupancyGridTests: XCTestCase {
         XCTAssertEqual(grid.wallHits[idx], 1)
         XCTAssertEqual(grid.floorHits[idx], 1)
         XCTAssertEqual(grid.totalPoints, 2)
-        XCTAssertEqual(grid.occupiedCellCount, 1)
+        // 면적 집계는 렌더 임계값 기준 — 1회 히트는 아직 미관측 (노이즈 셀이 라벨을 부풀리지 않게)
+        XCTAssertEqual(grid.occupiedCellCount, 0)
+        grid.accumulate(points: [ScanPoint(position: SIMD3(0, OccupancyGrid.floorBelow - 0.1, 0))])
+        XCTAssertEqual(grid.occupiedCellCount, 1)   // floorHits 2 = 임계값 도달
         XCTAssertEqual(grid.usedBounds?.minCol, half)
         XCTAssertEqual(grid.usedBounds?.maxRow, half)
     }
 
     func testUsedBoundsGrowAndResetClears() {
         let grid = OccupancyGrid()
-        grid.accumulate(points: [ScanPoint(position: SIMD3(0, 0, 0)), ScanPoint(position: SIMD3(1, 0, -1))])
+        let wall = [ScanPoint(position: SIMD3(0, 0, 0)), ScanPoint(position: SIMD3(1, 0, -1))]
+        grid.accumulate(points: wall + wall + wall)   // 벽 임계값(3) 충족 — 두 셀 관측
         XCTAssertEqual(grid.usedBounds?.maxCol, half + 20)
         XCTAssertEqual(grid.usedBounds?.minRow, half - 20)
         XCTAssertEqual(grid.occupiedCellCount, 2)

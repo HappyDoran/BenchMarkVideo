@@ -204,11 +204,12 @@ struct ContentView: View {
                                let center = viewCenter {
                                 // 오버레이 미니맵과 같은 mesh top-down — 격자 비트맵의 도트·검정 블록 없음
                                 MeshTopDownView(mesh: mesh, cameraXZ: center, visibleRadius: viewRadius)
+                                map2DOverlay(side: side)   // 세계 창 매핑 — mesh 카메라와 동일 기준
                             } else {
-                                // mesh가 아직 없을 때(스캔 극초반)만 격자 fallback
+                                // mesh 전(스캔 극초반) 격자 fallback — auto-fit 매핑이라
+                                // 세계 창 오버레이·측정과 기준이 달라 자체 마커·궤적만 쓴다
                                 MinimapView(snapshot: viewModel.snapshot)
                             }
-                            map2DOverlay(side: side)
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.25)))
@@ -240,7 +241,8 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                 } else if let cloud = viewModel.pointCloud {
                     // 2D와 같은 정사각 프레임 — 모드 전환 시 피커·버튼 위치가 흔들리지 않는다.
-                    PointCloudViewerView(cloud: cloud, mesh: viewModel.coloredMesh,
+                    // mesh는 liveMesh(주기 갱신) 공용 — 별도 export 없음.
+                    PointCloudViewerView(cloud: cloud, mesh: viewModel.liveMesh,
                                          measurePoints: $measurePoints)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .aspectRatio(1, contentMode: .fit)
@@ -280,15 +282,20 @@ struct ContentView: View {
         .onAppear {
             viewModel.prepareExport()
             viewModel.preparePointCloud()   // 3D 전환 시 바로 보이게 미리 준비
-            // 세계 창 auto-fit 초기화: 관측 영역 중심 + 반경 (스냅샷 crop 기반)
-            if viewCenter == nil, let snapshot = viewModel.snapshot {
-                viewCenter = snapshot.worldPoint(normalized: CGPoint(x: 0.5, y: 0.5))
-                viewRadius = max(snapshot.cropSideMeters / 2, 2)
-            }
+            autoFitWorldWindowIfNeeded()
         }
+        // 첫 스냅샷 전에 열렸으면 스냅샷 도착 시 auto-fit 재시도 — onAppear 한 번으로는 영구 nil
+        .onChange(of: viewModel.snapshot == nil) { _, _ in autoFitWorldWindowIfNeeded() }
         .onChange(of: mapViewMode) { _, mode in
             if mode == .cloud3D { viewModel.preparePointCloud() }  // 최신 격자 반영
         }
+    }
+
+    /// 세계 창 auto-fit 초기화: 관측 영역 중심 + 반경 (스냅샷 crop 기반). 이미 설정돼 있으면 유지.
+    private func autoFitWorldWindowIfNeeded() {
+        guard viewCenter == nil, let snapshot = viewModel.snapshot else { return }
+        viewCenter = snapshot.worldPoint(normalized: CGPoint(x: 0.5, y: 0.5))
+        viewRadius = max(snapshot.cropSideMeters / 2, 2)
     }
 
     private func expandedButtonLabel(_ title: String, icon: String) -> some View {
@@ -308,7 +315,7 @@ struct ContentView: View {
         mapViewMode = .map2D
     }
 
-    // MARK: - 거리 측정 (전체화면 전용 — 항등 변환이라 뷰 좌표/side = 정규화 좌표)
+    // MARK: - 거리 측정 (전체화면 전용 — 세계 창 매핑: 뷰 좌표 ↔ 중심·반경 기준 월드 좌표)
 
     private var measureLabel: String {
         switch measurePoints.count {
@@ -327,7 +334,9 @@ struct ContentView: View {
     }
 
     private func addMeasurePoint(_ p: CGPoint, side: CGFloat) {
-        guard side > 0, let center = viewCenter else { return }
+        // mesh 배경(세계 창 매핑)에서만 유효 — 격자 fallback은 다른 매핑이라 측정을 받지 않는다
+        guard side > 0, let center = viewCenter,
+              viewModel.liveMesh?.positions.isEmpty == false else { return }
         let metersPerPoint = 2 * viewRadius / Float(side)
         let world = center + SIMD2(Float(p.x - side / 2) * metersPerPoint,
                                    Float(p.y - side / 2) * metersPerPoint)

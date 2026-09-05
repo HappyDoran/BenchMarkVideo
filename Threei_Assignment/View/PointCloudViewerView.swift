@@ -31,7 +31,7 @@ struct PointCloudViewerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: SCNView, context: Context) {
         context.coordinator.parent = self
-        // mesh가 뒤늦게 도착하면 장면 재구성 (같은 데이터면 카메라 자세 유지 위해 건드리지 않음)
+        // mesh가 갱신되면 장면 재구성 (같은 버전이면 카메라 자세 유지 위해 건드리지 않음)
         let signature = Self.signature(cloud: cloud, mesh: mesh)
         if context.coordinator.contentSignature != signature {
             context.coordinator.contentSignature = signature
@@ -40,8 +40,9 @@ struct PointCloudViewerView: UIViewRepresentable {
         context.coordinator.syncMarkers(in: uiView, points: measurePoints)
     }
 
+    /// version 기준 — 정점 수는 같아도 색·기하가 갱신될 수 있다 (빌드마다 version 증가).
     private static func signature(cloud: GridPointCloud, mesh: ColoredMesh?) -> Int {
-        (mesh?.positions.count ?? 0) &* 31 &+ cloud.positions.count
+        (mesh?.version ?? 0) &* 31 &+ cloud.positions.count
     }
 
     @MainActor
@@ -62,21 +63,24 @@ struct PointCloudViewerView: UIViewRepresentable {
         }
 
         /// 측정 마커·선 노드를 measurePoints와 동기화. 이름으로 지우고 다시 그린다 (점 최대 2개라 비용 무시).
+        /// 마커 높이는 측정 평면(실제 바닥)과 동일 기준 — y=0 고정이면 공중에 뜬다.
         func syncMarkers(in view: SCNView, points: [SIMD2<Float>]) {
             guard let root = view.scene?.rootNode else { return }
+            let floorY = root.childNode(withName: "measureFloor", recursively: false)?.position.y ?? 0
+            let markerY = floorY + 0.05
             root.childNodes.filter { $0.name == "measure" }.forEach { $0.removeFromParentNode() }
             for p in points {
                 let sphere = SCNSphere(radius: 0.06)
                 sphere.firstMaterial?.diffuse.contents = UIColor.orange
                 sphere.firstMaterial?.lightingModel = .constant
                 let node = SCNNode(geometry: sphere)
-                node.position = SCNVector3(p.x, 0.05, p.y)
+                node.position = SCNVector3(p.x, markerY, p.y)
                 node.name = "measure"
                 root.addChildNode(node)
             }
             if points.count == 2 {
-                let vertices = [SCNVector3(points[0].x, 0.05, points[0].y),
-                                SCNVector3(points[1].x, 0.05, points[1].y)]
+                let vertices = [SCNVector3(points[0].x, markerY, points[0].y),
+                                SCNVector3(points[1].x, markerY, points[1].y)]
                 let source = SCNGeometrySource(vertices: vertices)
                 let indices: [Int32] = [0, 1]
                 let element = indices.withUnsafeBufferPointer { buf in
@@ -96,13 +100,18 @@ struct PointCloudViewerView: UIViewRepresentable {
     private static func makeScene(cloud: GridPointCloud, mesh: ColoredMesh?) -> SCNScene {
         let scene = SCNScene()
 
-        // 측정 탭 대상: 보이지 않는 바닥 평면 (y=0). 점·삼각형 히트테스트 대신
+        // 측정 탭 대상: 보이지 않는 바닥 평면. 점·삼각형 히트테스트 대신
         // 바닥 투영 측정으로 통일 — 2D 격자 측정과 같은 수평 거리 시맨틱.
+        // 높이는 실제 데이터의 최저 y — 월드 y=0은 앱 실행 시 카메라 높이라 실제 바닥은 그보다
+        // 약 1.2~1.5m 아래에 있고, y=0에 두면 사선 시차로 측정이 어긋나고 마커가 공중에 뜬다.
+        let floorY = (mesh?.positions ?? cloud.positions).map(\.y).min() ?? 0
         let floor = SCNNode(geometry: SCNPlane(width: 100, height: 100))
         floor.eulerAngles.x = -.pi / 2
+        floor.position.y = floorY
         // isHidden: 렌더에서 완전 제외 — opacity 트릭은 depth buffer에 남아 낮은 각도·아래 시점에서
         // mesh를 절반 가리는 결함이 있었다 (히트테스트는 ignoreHiddenNodes: false로 여전히 잡힘).
         floor.isHidden = true
+        floor.name = "measureFloor"
         floor.categoryBitMask = floorCategory
         scene.rootNode.addChildNode(floor)
 
