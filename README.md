@@ -2,6 +2,17 @@
 
 iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 위에 스캔 영역을 표시하고, 동시에 위에서 내려다본 2D 미니맵(occupancy grid)을 그린다. 순수 Swift, SwiftUI + ARKit + RealityKit, 서드파티 의존성 없음.
 
+- **무엇**: 깊이 프레임을 직렬 큐 하나로 받아 100ms 스로틀·stride 4 샘플링 후 5cm 고정 격자에 누적하고, 격자의 불변 스냅샷과 정점 색 mesh를 `AsyncStream` 하나로 UI에 흘린다. 오버레이 미니맵(north-up)과 전체화면 2D/3D 뷰어(팬·줌·거리 측정·.ply 내보내기)까지.
+- **어떻게 확인했나**: iPhone 15 Pro 실기기 화면 녹화 28편을 프레임 단위로 판독한 46항목 매트릭스, Release 계측 빌드에서 콜백 p50 1.9ms·UI 60fps·3분 이상 연속 세션, 단위 테스트 41건.
+- **어디를 보나**: 설계 판단과 파이프라인은 `DESIGN.md`, LLM과 사람의 역할 구분·기각 사례는 `LLM_REPORT.md`, 실행·검증 절차는 이 문서.
+
+<p align="center">
+  <img src="docs/images/scan-overlay.jpg" width="30%" alt="스캔 중 — 카메라 위 와이어프레임, 좌하단 미니맵과 궤적, 상단 상태 캡슐">
+  <img src="docs/images/fullscreen-2d-measure.jpg" width="30%" alt="전체화면 2D — mesh top-down, 궤적, 두 점 거리 측정 1.73m, 관측 면적 48.1㎡">
+  <img src="docs/images/viewer-3d.jpg" width="30%" alt="3D 재구성 뷰어 — 정점 색 mesh 돌하우스">
+</p>
+<p align="center"><sub>왼쪽부터 스캔 중 오버레이 · 전체화면 2D 측정 · 3D 재구성 (같은 집 48.1㎡, 2026-09-06 데모 촬영 프레임)</sub></p>
+
 | 항목 | 값 |
 | --- | --- |
 | 개발 환경 | Xcode 26.1, Swift 6 언어 모드, iOS 17.0 이상 (`@Observable`이 iOS 17부터) |

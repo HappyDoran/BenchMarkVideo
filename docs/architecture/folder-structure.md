@@ -19,6 +19,7 @@ last_verified: 2026-09-06
 ├── docs/
 │   ├── AI_AGENT_HARNESS.md           # Agent 작업 지원 체계 설명
 │   ├── architecture/folder-structure.md
+│   ├── images/                           # README 스크린샷 3장 (스캔 중·전체화면 2D 측정·3D 뷰어, 09-06 데모 프레임)
 │   ├── spec/requirements.md              # 요구사항 번호·문서 구성 요약
 │   └── spec/gap-analysis.md              # 요구사항 대비 갭 분석·보완 백로그
 ├── .codex/skills/                    # canonical skill (Codex 진입)
