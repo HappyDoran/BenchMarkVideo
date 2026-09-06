@@ -200,7 +200,7 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 | `ScanViewModel` 출력 반영(`for await`)·전체화면 상태, SwiftUI 렌더 | MainActor |
 | RealityKit mesh 렌더 | RealityKit 내부 (관여 없음) |
 
-**이유.** 메인 스레드에서 unprojection과 비트맵 생성을 하면 SwiftUI 렌더가 막힌다(R3-1). 직렬 큐 하나면 락 없이 상태를 보호할 수 있다. 빌드 설정 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` 아래에서 Model만 `nonisolated`로 빼 컴파일러가 경계를 검사한다.
+**이유.** 메인 스레드에서 unprojection과 비트맵 생성을 하면 SwiftUI 렌더가 막힌다(R3-1). 직렬 큐 하나면 락 없이 상태를 보호할 수 있다. 빌드 설정 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` 아래에서 Model만 `nonisolated`로 빼 컴파일러가 경계를 검사한다. 언어 모드는 Swift 5(`SWIFT_VERSION = 5.0`) + Approachable Concurrency라 격리 위반은 오류가 아니라 경고다 — 그래서 `scripts/check-structure.sh`의 계층 검사와 리뷰가 경고를 대신 막는다. Swift 6 strict 전환은 `@preconcurrency import ARKit` 경로의 경고를 먼저 정리해야 한다.
 
 **대안.** actor로 감싸기 — `ARSessionDelegate`가 동기 콜백이라 actor hop이 프레임마다 필요해 오히려 복잡하다. `@unchecked Sendable`은 "큐 전용 접근" 규약을 전제로만 안전하며 그 규약은 `TECH_RULES.md`가 소유한다.
 

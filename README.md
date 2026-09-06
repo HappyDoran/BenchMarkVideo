@@ -15,7 +15,7 @@ iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 
 
 | 항목 | 값 |
 | --- | --- |
-| 개발 환경 | Xcode 26.1, Swift 6 언어 모드, iOS 17.0 이상 (`@Observable`이 iOS 17부터) |
+| 개발 환경 | Xcode 26.1, Swift 5 언어 모드 + Approachable Concurrency(기본 MainActor 격리, `SWIFT_VERSION = 5.0`), iOS 17.0 이상 (`@Observable`이 iOS 17부터) |
 | 테스트 기기 | iPhone 15 Pro (iPhone16,1, LiDAR), iOS 26.6 — 2026-09-04 실기기 검증 완료 (화면 녹화 22편 프레임 판독), 2026-09-06 3차 Release·Debug 계측 빌드 각 1편(약 3.5분) OCR 판독 |
 | 아키텍처 | MVVM (`App / Model / ViewModel / View`) — 근거 `DESIGN.md` 1.1절 |
 | 산출 문서 | 설계 `DESIGN.md` · LLM 활용 리포트 `LLM_REPORT.md` · 이 README |

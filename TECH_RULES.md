@@ -10,7 +10,7 @@ last_verified: 2026-09-06
 
 ## 1. 고정 기술 스택
 
-- Xcode 26.1, iOS 17.0+, Swift 6 언어 모드, SwiftUI 단일 타깃 `BenchMarkVideo`
+- Xcode 26.1, iOS 17.0+, Swift 5 언어 모드(`SWIFT_VERSION = 5.0`) + Approachable Concurrency(`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, `SWIFT_APPROACHABLE_CONCURRENCY = YES`) — Swift 6 strict 모드는 아니며 격리 위반은 경고로 나온다, SwiftUI 단일 타깃 `BenchMarkVideo`
 - ARKit (`ARWorldTrackingConfiguration`, `smoothedSceneDepth`, `sceneReconstruction = .mesh`)
 - RealityKit `ARView` — 카메라 프리뷰와 스캔 mesh 시각화 (`.showSceneUnderstanding`)
 - SceneKit `SCNView` — 스캔 결과 뷰어(정점 색 mesh·점군, 회전·줌)와 미니맵 mesh top-down 렌더
