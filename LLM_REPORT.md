@@ -14,12 +14,13 @@
 | 파일/모듈 | 작성 주체 | 비고 |
 |---|---|---|
 | `Model/DepthFrameProcessor.swift` | LLM 초안 | unprojection 수식은 Apple 샘플의 flipYZ 방식 채택. 실기기 스케일 검증 완료 (1.4m 책상 실측 정합) |
-| `Model/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정. 성능 계측 절(`#if SCAN_DIAGNOSTICS`)은 LLM 생성, 측정은 사람이 수행 |
+| `Model/ARSessionManager.swift` | LLM 초안 | 스로틀 주기·pause 의미(세션 유지, 누적만 중단)는 사람이 결정. 성능 계측 절(`#if SCAN_DIAGNOSTICS`)은 LLM 생성, 측정은 사람이 수행. 09-06 리팩토링으로 세션·게이트만 남김 (사례 25) |
+| `Model/ScanPipeline.swift`, `View/ExpandedMapView.swift`, `ScanDiagnosticsCollector` | 사람 요청·범위 결정 + LLM 설계·구현 | 사람이 "이상적 단방향 구조"를 물어 LLM이 어긋난 지점 3곳(View `@State` 11개, 매니저 역할 4개, 출력 경로 4개)을 짚었고, 사람이 셋 다 진행을 결정. `AsyncStream<ScanOutput>` 단일 출력, 파이프라인·게이트 분리, 전체화면 상태 ViewModel 승격 (사례 25) |
 | `Model/OccupancyGrid.swift` | LLM 초안 | 격자 해상도(5cm)·높이 밴드 파라미터는 실기기 검증 결과 그대로 유지 판정 (바닥·천장 필터 cells 불변 실증) |
 | `Model/MinimapRenderer.swift` | LLM 초안 | auto-fit crop 방식 |
 | `View/MinimapView.swift`, `View/ARPreviewView.swift`, `View/ContentView.swift` | LLM 생성 | UI 보일러플레이트 |
 | `ViewModel/ScanViewModel.swift` | LLM 생성 | 세션 attach 중계는 MVVM 재배치 때 추가 (사례 4) |
-| `BenchMarkVideoTests/*` (32건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
+| `BenchMarkVideoTests/*` (41건), XCTest 타깃·공유 scheme | LLM 생성 | 테스트 도입 시점은 사람 결정 (사례 5). 케이스 선정은 좌표 규약 문서 기준 |
 | `docs/spec/requirements.md`, `README.md` 체크리스트·`DESIGN.md` 요구사항 대응 절 | LLM 생성 | 세션 2에서 요구사항 정의 전문을 그대로 제공 → 요구사항 번호·문서 구성 조건을 소유 문서로 고정하고 R1~R4 상태를 매핑. 참고 영상은 프레임을 추출해 LLM이 직접 비교 |
 | 아키텍처 결정 (RealityKit mesh 시각화로 Metal 렌더러 대체, north-up 고정, 고정 격자 채택, MVVM 계층 폴더링) | 사람 (LLM 브리핑 기반 합의) | 근거는 `DESIGN.md` |
 | 문서 체계 (`AGENTS.md`, `TECH_RULES.md`, `README.md`, `DESIGN.md`, skill 3종, `scripts/check-structure.sh`) | 사람 설계 + LLM 본문 | 사람이 이 프로젝트용으로 구축한 Agent 작업 지원 체계 — 도구 중립 라우터(`AGENTS.md`, `CLAUDE.md`는 symlink), 사실 하나당 소유 문서 하나 원칙, 작업 유형별 skill, grep 기반 구조·문서 계약 검사. 구조와 소유권 규칙은 사람이 지정, 본문 작성은 LLM |
@@ -174,6 +175,15 @@
 - **사람 판정**: 미니맵 탭은 본인 조작이고 그동안 세션·메모리·격자가 유지됐으므로, R3-2 연속 스캔 판정은 녹화 전체(205·210초)를 기준으로 하기로 결정. LLM은 `연속 누적 허용` 계수기 값을 지우지 않고 원값 그대로 남기되 세션 길이 근거로 쓰지 않는다고 적었다. 이전 3차 판독(Development 139초·Production 124초·보충 184초)은 이 회차로 교체해 문서에서 제거했다.
 - **결과**: Release 콜백 p50 1.9ms / p95 2.8ms, DisplayLink 60.0Hz 상시 — Debug의 약 1/12. Debug는 두 편 연속 촬영으로 발열 `높음` 상태였고 09-05보다 2배 느렸다. 발열과 패널 부하를 분리하지 못한 점을 한계로 적었다.
 - **교훈**: 계측 경계를 분리해 두고 실행하지 않으면 분리의 의미가 없다. 그리고 판독은 수치 표보다 gate·상태 열의 예외 프레임을 먼저 봐야 한다 — 3분 연속 여부가 거기서 갈렸다.
+
+### 사례 25 — 단방향 흐름 리팩토링: 출력 스트림 하나, 파이프라인 분리, 화면 상태 승격 (사람 결정 → LLM 구현, 2026-09-06)
+
+- **계기**: 제출 직전 평가에서 LLM이 코드 품질 항목의 약점으로 `ContentView`·`ARSessionManager` 비대와 `#if` 산재를 들자, 사람이 "그렇다면 이 프로젝트에 이상적인 단방향 아키텍처는 무엇인가"를 물었다. LLM은 새 프레임워크가 아니라 지금 MVVM을 끝까지 밀어붙인 형태를 답했다: 명령 하나 내려가고 출력 스트림 하나 올라온다.
+- **어긋난 지점 3곳**: ① Model → ViewModel 출력이 콜백 3개 + 1.5초 `Timer` pull이라 순서 보장을 위해 `DispatchQueue.main.async` FIFO 트릭을 수동으로 두고 있었다. ② `ARSessionManager` 472줄에 세션·게이트·누적·mesh 빌드·진단이 섞여 있었다. ③ `ContentView`가 `@State` 11개로 전체화면 지도의 상태 머신을 숨겨 갖고 있었다.
+- **사람 결정**: LLM은 시간(하루 반)과 마감을 들어 ①만 권했으나, 사람이 셋 다 진행하고 데모 영상은 그 뒤에 찍기로 결정.
+- **구현**: `ScanOutput` enum + `AsyncStream`(무제한 버퍼 — 이벤트 유실 금지) 하나로 통합, ViewModel은 MainActor `Task`의 `for await` 한 곳에서 `apply`. mesh 주기는 파이프라인이 프레임 시각으로 스스로 잡아 ViewModel의 `Timer`·`asyncAfter`가 사라졌다. `ScanPipeline`(누적·궤적·렌더·mesh·내보내기)과 `ScanDiagnosticsCollector`(signpost·perf 로그·창 집계)를 분리해 매니저는 세션·게이트 판정(`FrameGate`)만 남았고, 매니저의 `#if SCAN_DIAGNOSTICS`는 14곳에서 5곳으로 줄었다. 전체화면 지도는 `ExpandedMapView` + ViewModel 상태(열림·측정점·세계 창·3D 고정 mesh)로 옮겨 `ContentView`는 469 → 221줄.
+- **검증**: 컴파일, 구조 검사, 단위 테스트 41건(파이프라인 5건·ViewModel 4건 추가). 실기기는 미검증 — `README.md` 매트릭스에 리팩토링 이후 미검증 표기를 두고 재촬영 대상으로 남겼다.
+- **교훈**: "단방향"은 프레임워크 이름이 아니라 출력 경로의 개수다. 경로가 하나면 순서·hop·테스트가 전부 구조에서 따라온다.
 
 ## 4. 핵심 프롬프트 발췌
 
