@@ -1,7 +1,7 @@
 ---
 title: AI Agent 작업 지원 체계
 kind: design
-last_verified: 2026-09-05
+last_verified: 2026-09-06
 ---
 
 # AI Agent 작업 지원 체계
