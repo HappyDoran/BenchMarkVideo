@@ -50,7 +50,7 @@ struct MinimapView: View {
     }
 
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
-    /// visibleRadius가 nil이면 항등 (전체화면 fallback — 팬·줌은 ContentView의 세계 창이 담당).
+    /// visibleRadius가 nil이면 항등 (전체화면 fallback — 팬·줌은 ExpandedMapView의 세계 창이 담당).
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
         guard let visibleRadius else { return (1, .zero) }
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))

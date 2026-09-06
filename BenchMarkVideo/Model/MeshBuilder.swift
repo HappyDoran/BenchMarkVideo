@@ -6,7 +6,7 @@ nonisolated struct ColoredMesh: Sendable {
     var positions: [SIMD3<Float>] = []
     var colors: [SIMD3<UInt8>] = []
     var indices: [Int32] = []
-    /// 빌드 순번 — 정점 수가 같아도 색·기하가 갱신됐는지 뷰가 판별하는 기준 (ARSessionManager가 부여).
+    /// 빌드 순번 — 정점 수가 같아도 색·기하가 갱신됐는지 뷰가 판별하는 기준 (ScanPipeline이 부여).
     var version: Int = 0
     #if SCAN_DIAGNOSTICS
     var diagnosticGeneration = 0
