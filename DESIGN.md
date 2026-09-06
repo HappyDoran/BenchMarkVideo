@@ -19,10 +19,11 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
                           OccupancyGrid (5cm cell, 고정 400×400, floor/wall hit)    [Model]
                                      ▼
                           MinimapRenderer (used-bounds crop → MinimapSnapshot)      [Model]
-                                     ▼  onSnapshot / onEvent (Sendable, MainActor로 hop)
-                          ScanViewModel (@Observable, MainActor)                    [ViewModel]
+                                     │  ↑ 위 세 단계는 ScanPipeline이 큐에서 구동 (게이트 판정은 ARSessionManager)
+                                     ▼  AsyncStream<ScanOutput> 하나 — snapshot / event / mesh / pointCloud / plyFile
+                          ScanViewModel (@Observable, MainActor, for await로 상태 반영) [ViewModel]
                                      ▼
-                          ContentView · MinimapView · ARPreviewView                 [View]
+                          ContentView · ExpandedMapView · MinimapView · ARPreviewView [View]
 ```
 
 모듈 책임과 파일 위치는 `docs/architecture/folder-structure.md`. 좌표계·동시성 규약은 `TECH_RULES.md`. 이 문서는 "왜 이렇게 했는가"만 다룬다.
@@ -35,9 +36,9 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 1. **계층 경계가 곧 격리 경계다.** 이 앱의 핵심 제약은 동시성이다 — ARKit delegate는 `scan.processing` 직렬 큐에서 돌고, SwiftUI는 MainActor에서 돈다. MVVM의 세 계층이 이 두 실행 문맥에 그대로 대응한다: Model은 `nonisolated`로 큐 전용, ViewModel은 MainActor 상태 허브, View는 ViewModel만 읽는다. 폴더 이름만 보고도 "이 파일은 어느 스레드에서 도는가"를 알 수 있다. 격리 규칙을 폴더 규칙으로 바꾸면 기계 검사(`scripts/check-structure.sh`)가 가능해진다.
 2. **SwiftUI + `@Observable`의 기본 형태다.** View는 상태의 함수이고, 상태를 소유·발행하는 객체가 하나 필요하다. `ScanViewModel`이 그 하나다. 별도 프레임워크나 boilerplate 없이 Observation만으로 성립한다.
-3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 전체 32건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
+3. **테스트 경계가 분명하다.** Model은 UI 프레임워크를 import하지 않는 순수 계층이라 시뮬레이터에서 단위 테스트할 수 있다 (`BenchMarkVideoTests/`, 전체 41건). 실기기 없이는 런타임을 못 보는 이 프로젝트에서, 실기기 없이도 검증 가능한 영역을 폴더로 분리해 둔 것이다.
 4. **LLM 협업에 유리하다.** 배치 규칙이 "파일이 어느 폴더에 있고 무엇을 import하면 안 되는가"라는 기계적 규칙이라 에이전트에게 강제할 수 있고, 위반이 커밋 전에 스크립트로 잡힌다. 기능 단위 폴더링(`Scan/`, `Minimap/`, `UI/`)은 어디까지가 UI이고 어디까지가 파이프라인인지 사람의 판단이 필요했다.
-5. **프로젝트 규모에 맞는 무게다.** 단일 스캔 흐름, 앱 소스 15개다. 세 계층으로 충분하다.
+5. **프로젝트 규모에 맞는 무게다.** 단일 스캔 흐름, 앱 소스 17개다. 세 계층으로 충분하다.
 
 **검토한 대안.**
 
@@ -50,7 +51,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 32건 통과. 실기기 검증 완료 (2026-09-04~06, `README.md` 매트릭스). 3차 녹화에서는 명령줄 조건으로 만든 Release 계측 빌드와 Debug 빌드를 같은 동선으로 3분 이상 촬영해, 최적화 코드의 내부 수치와 3분 연속 세션을 같은 패널에서 읽었다 (10절).
+**검증 상태.** 컴파일·구조 검사·단위 테스트 41건 통과. 실기기 검증 완료 (2026-09-04~06, `README.md` 매트릭스). 3차 녹화에서는 명령줄 조건으로 만든 Release 계측 빌드와 Debug 빌드를 같은 동선으로 3분 이상 촬영해, 최적화 코드의 내부 수치와 3분 연속 세션을 같은 패널에서 읽었다 (10절).
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -62,15 +63,15 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 | 단계 | 어디서 | 무엇을 | 버리는 것 |
 | --- | --- | --- | --- |
-| ① 프레임 수신 | `ARSessionManager.session(_:didUpdate:)`, `scan.processing` 큐 | `ARFrame` 도착 (기기 기본 60fps) | — |
+| ① 프레임 수신·게이트 | `ARSessionManager.session(_:didUpdate:)`, `scan.processing` 큐 | `ARFrame` 도착 (기기 기본 60fps). tracking·재로컬라이즈 안정화·누적 여부를 `FrameGate`로 판정해 값만 `ScanPipeline.process`에 넘긴다 | — |
 | ② 스로틀 | 같은 콜백, 첫 줄 | `timestamp - lastProcessedTime < 0.1s`면 즉시 반환 | 약 6프레임 중 5프레임 |
-| ③ 자세 추출 | 같은 콜백 | `camera.transform`에서 위치(x, z)와 heading | — |
-| ④ 깊이 선택 | 같은 콜백 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 궤적·마커만 갱신 |
+| ③ 자세 추출 | `ScanPipeline.process` | `camera.transform`에서 위치(x, z)와 heading | — |
+| ④ 깊이 선택 | 매니저가 게이트 통과 시에만 `smoothedSceneDepth ?? sceneDepth` 버퍼를 입력에 실음 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 궤적·마커만 갱신 |
 | ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
 | ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
-| ⑦ 궤적 | `ARSessionManager` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동, 트래킹 limited 중 이동 |
+| ⑦ 궤적 | `ScanPipeline` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동, 트래킹 limited 중 이동 |
 | ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
-| ⑨ 전달 | `onSnapshot` → `ScanViewModel` | 불변 `MinimapSnapshot`을 main 큐 FIFO로 hop한 뒤 MainActor 상태 갱신 | — |
+| ⑨ 전달 | `AsyncStream<ScanOutput>` → `ScanViewModel.apply` | 불변 `MinimapSnapshot`을 단일 스트림으로 발행, ViewModel의 MainActor `for await`가 상태 갱신. mesh(1.5초 주기)·이벤트·내보내기 결과도 같은 스트림 | — |
 | ⑩ 표시 | `MinimapView` | 이미지 + `Canvas`로 궤적·마커·시야 부채꼴 오버레이. 오버레이 모드는 이미지를 scale·offset해 카메라를 중앙에 고정 (3.4절) | — |
 
 ②~⑧이 콜백 안에서 동기로 끝난다. `ARFrame`은 콜백 밖으로 나가지 않는다 — 프레임 풀 고갈 방지 (`TECH_RULES.md` 3절). 실시간 갱신(R2-1)은 이 구조 자체로 보장된다: 스캔 종료 후 일괄 처리하는 단계가 없다.
@@ -189,12 +190,14 @@ CPU 처리다. 프레임당 3천 점 × 10Hz = 초당 3만 점 역투영은 CPU 
 
 ## 8. 스레딩·동시성
 
-**결정.** `ARSession.delegateQueue = DispatchQueue(label: "scan.processing")`. 그리드·궤적·누적 플래그는 이 큐에서만 접근한다. UI로는 불변 `MinimapSnapshot`만 넘긴다. ViewModel → Model 제어(`startAccumulating` 등)는 큐로 `async` hop한다.
+**결정.** `ARSession.delegateQueue = DispatchQueue(label: "scan.processing")`. 그리드·궤적·누적 플래그는 이 큐에서만 접근한다. UI로는 `AsyncStream<ScanOutput>` 하나로 불변 값(`MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud`·URL)만 넘기고, ViewModel은 MainActor `Task`에서 `for await`한다. ViewModel → Model 제어(`startAccumulating` 등)는 큐로 `async` hop한다.
+
+**단일 스트림인 이유.** 이전에는 콜백 3개(`onSnapshot`·`onEvent`·`onDiagnostics`)와 ViewModel의 1.5초 `Timer`가 mesh를 당겨오는 pull이 섞여 있었고, 순서 보장을 위해 `DispatchQueue.main.async` FIFO + `MainActor.assumeIsolated`를 ViewModel에 수동으로 두어야 했다 (`Task`는 순서를 보장하지 않아 초기화 직후 빈 스냅샷과 옛 스냅샷이 뒤집힌 적이 있다). 출력을 스트림 하나로 모으면 순서는 구조가 보장하고, hop 지점은 `for await` 한 곳이며, mesh 주기도 파이프라인이 프레임 시각 기준으로 스스로 잡는다 (시작 0.6초 뒤 1회, 이후 1.5초). 버퍼는 무제한 — 이벤트 하나를 버리면 배지 상태가 어긋나고, 생산량은 10Hz 스냅샷 수준이라 적체가 없다.
 
 | 작업 | 실행 문맥 |
 | --- | --- |
-| ARKit delegate 콜백, 역투영, 격자 누적, 비트맵 생성 | `scan.processing` 직렬 큐 |
-| `ScanViewModel` 상태 갱신, SwiftUI 렌더 | MainActor |
+| ARKit delegate 콜백·게이트 (`ARSessionManager`), 역투영·격자 누적·비트맵·mesh 빌드 (`ScanPipeline`) | `scan.processing` 직렬 큐 |
+| `ScanViewModel` 출력 반영(`for await`)·전체화면 상태, SwiftUI 렌더 | MainActor |
 | RealityKit mesh 렌더 | RealityKit 내부 (관여 없음) |
 
 **이유.** 메인 스레드에서 unprojection과 비트맵 생성을 하면 SwiftUI 렌더가 막힌다(R3-1). 직렬 큐 하나면 락 없이 상태를 보호할 수 있다. 빌드 설정 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` 아래에서 Model만 `nonisolated`로 빼 컴파일러가 경계를 검사한다.
@@ -344,7 +347,7 @@ Release의 DisplayLink 간격이 16.7ms를 넘은 구간은 셋뿐이다: 시작
 **구현 요점.**
 - ARKit 정점 버퍼는 packed float3(12바이트) — SIMD3 직접 로드(16바이트 정렬) 금지, Float 3개로 읽는다.
 - **돌하우스**: ARKit mesh 면은 관측한 쪽(방 안)을 향한다. 뒷면 컬링(`isDoubleSided = false`) 한 줄로 카메라를 등진 벽·천장이 투명해져 밖에서도 내부가 보인다. 천장 스캔 후 닫힌 상자가 되는 문제와 top-down 미니맵이 천장에 덮이는 문제를 함께 해결.
-- **갱신 규율**: 빌드는 1.5초 주기 + 입력 서명(앵커 수 + 누적 점) 미변경 시 스킵, 스캔 시작·재개 시 1회 즉시. 뷰는 빌드 version으로만 재구성 — 보는 중 장면 교체가 카메라를 리셋해 "공간 뒤틀림"이 되므로 3D는 진입 시점 mesh를 고정하고, 전체화면 자체가 자동 일시정지다 (3.4절).
+- **갱신 규율**: 빌드는 파이프라인이 프레임 시각 기준으로 잡는다 — 시작 0.6초 뒤 1회, 이후 1.5초 주기, 입력 서명(앵커 수 + 누적 점) 미변경 시 스킵. 빌드는 콜백 밖(같은 큐의 다음 블록)에서 돌아 콜백 예산을 지킨다. 뷰는 빌드 version으로만 재구성 — 보는 중 장면 교체가 카메라를 리셋해 "공간 뒤틀림"이 되므로 3D는 진입 시점 mesh를 고정하고, 전체화면 자체가 자동 일시정지다 (3.4절).
 
 **측정 설계.** 시맨틱은 수평(xz) 거리 — 2D 격자 측정과 동일하고, `measurePoints`를 2D/3D가 공유해 어느 쪽에서 찍어도 양쪽에 표시된다. 3D 탭은 mesh 표면 히트 우선(가구 모서리를 직접 잡음, 마커는 표면 높이에 부착), 빈 공간은 바닥 평면 투영 fallback. 바닥 높이는 **밀도 기반 추정**(`MeshBuilder.estimatedFloorY`) — y 히스토그램(10cm)에서 아래부터 임계 밀도 이상인 첫 버킷. 단순 최저값은 유리 반사 허상 정점에 끌려 평면이 지하로 꺼져 오측정을 냈다(실기기 재현 → 단위 테스트로 고정).
 
@@ -360,4 +363,5 @@ Release의 DisplayLink 간격이 16.7ms를 넘은 구간은 셋뿐이다: 시작
 4. ~~드리프트 대응~~ — 시도 구현 (12절 재로컬라이즈 안정화 창). 격자 이동 보정은 실측상 방 규모 드리프트가 셀 이하라 불요 판정.
 5. ~~미니맵 팬·줌~~ — 완료: 전체화면 세계 창(중심+반경) 방식.
 6. ~~스캔 결과 내보내기~~ — 완료: 관측 셀 .ply + ShareLink (`GridExporter`).
-7. **키프레임 텍스처 베이킹** — 현재 3D는 정점 색 근사. 참고 영상 수준의 면 단위 사진 텍스처는 스캔 중 키프레임(이미지+포즈) 저장 → 삼각형별 최적 프레임 선택 → UV 아틀라스 베이킹이 필요하다. 공개 참고 코드: TokyoYoshida/ExampleOfiOSLiDAR (MIT, 단일 프레임 투영).
+7. ~~단방향 출력 통합·파이프라인 분리·전체화면 상태 승격~~ — 완료 (2026-09-06): `AsyncStream<ScanOutput>` 하나, `ScanPipeline` 분리, `ExpandedMapView` + ViewModel 상태. 실기기 재검증은 매트릭스 참고.
+8. **키프레임 텍스처 베이킹** — 현재 3D는 정점 색 근사. 참고 영상 수준의 면 단위 사진 텍스처는 스캔 중 키프레임(이미지+포즈) 저장 → 삼각형별 최적 프레임 선택 → UV 아틀라스 베이킹이 필요하다. 공개 참고 코드: TokyoYoshida/ExampleOfiOSLiDAR (MIT, 단일 프레임 투영).

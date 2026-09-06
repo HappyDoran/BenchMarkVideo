@@ -1,6 +1,7 @@
 import ARKit
 import Foundation
 import Observation
+import simd
 
 enum ScanState {
     case ready      // 세션은 돌지만 누적 전
@@ -8,7 +9,14 @@ enum ScanState {
     case paused
 }
 
-/// UI 상태 허브 (MainActor). 스캔 파이프라인의 스냅샷/이벤트를 받아 발행.
+/// 전체화면 뷰어 모드 — 2D 미니맵 / 3D 점군. 측정 상태(measurePoints)는 두 모드가 공유.
+enum MapViewMode: String, CaseIterable {
+    case map2D = "2D"
+    case cloud3D = "3D"
+}
+
+/// UI 상태 허브 (MainActor). Model의 단일 출력 스트림(`ScanOutput`)을 받아 상태로 바꾸고,
+/// View의 의도(시작·일시정지·전체화면·측정)를 Model 명령으로 내린다. View는 여기만 읽는다.
 @Observable
 final class ScanViewModel {
 
@@ -23,9 +31,44 @@ final class ScanViewModel {
     private(set) var exportURL: URL?
     /// 3D 뷰어용 점군 — 뷰어 열 때 생성. mesh가 비었을 때의 fallback.
     private(set) var pointCloud: GridPointCloud?
-    /// 미니맵 배경·3D 뷰어 공용 실시간 mesh — 1.5초 주기, 입력 변경 시에만 재빌드·발행.
+    /// 미니맵 배경·3D 뷰어 공용 실시간 mesh — 파이프라인이 1.5초 주기, 입력 변경 시에만 발행.
     private(set) var liveMesh: ColoredMesh?
-    private var meshRefreshTimer: Timer?
+    /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
+    private(set) var fatalMessage: String?
+    private(set) var isPermissionDenied = false
+
+    // MARK: - 전체화면 지도 (열면 자동 일시정지 — 보는 동안 데이터·mesh가 흐르지 않게)
+
+    private(set) var isMapExpanded = false
+    /// 거리 측정 점(월드 xz, 최대 2개) — 탭으로 지정, 세 번째 탭은 새 측정 시작. 3D 뷰어가 직접 쓴다.
+    var measurePoints: [SIMD2<Float>] = []
+    /// 세계 창 — 중심(월드 xz)과 반경(m). 팬 = 중심 이동, 줌 = 반경 축소.
+    /// nil이면 첫 스냅샷의 관측 영역으로 auto-fit 초기화.
+    private(set) var viewCenter: SIMD2<Float>?
+    private(set) var viewRadius: Float = 5
+    static let viewRadiusRange: ClosedRange<Float> = 0.5...20
+    var mapViewMode: MapViewMode = .map2D {
+        didSet {
+            guard mapViewMode == .cloud3D, oldValue != .cloud3D else { return }
+            sessionManager.exportPointCloud()   // 최신 격자 반영
+            frozenMesh = liveMesh               // 진입 시점 고정 — 재진입하면 새로 고정
+        }
+    }
+    /// 3D 진입 시점의 mesh 고정 — 보는 중 재빌드로 카메라 리셋·기하 교체(공간 뒤틀림)가 없게.
+    private(set) var frozenMesh: ColoredMesh?
+    /// 전체화면을 열며 자동 일시정지했는가 — 닫을 때 이전 상태(스캔 중)로만 복귀.
+    private var resumeAfterExpand = false
+
+    /// 3D 뷰어에 넘길 mesh — 고정본 우선.
+    var expandedMesh: ColoredMesh? { frozenMesh ?? liveMesh }
+    /// 오버레이 미니맵 배경. 진단 빌드의 "격자만 보기"면 nil.
+    var minimapBackgroundMesh: ColoredMesh? {
+        #if SCAN_DIAGNOSTICS
+        if diagnosticGridOnly { return nil }
+        #endif
+        return liveMesh
+    }
+
     #if SCAN_DIAGNOSTICS
     private(set) var diagnostics = ScanDiagnostics()
     private(set) var diagnosticSnapshotTime: TimeInterval = 0
@@ -46,44 +89,53 @@ final class ScanViewModel {
         markDiagnosticEvent("구간 #\(diagnosticMarker)")
     }
     #endif
-    /// 복구 불가 오류 (권한 거부 등). 표시되면 스캔 UI 대신 안내 화면.
-    private(set) var fatalMessage: String?
-    private(set) var isPermissionDenied = false
 
     let isDeviceSupported = ARSessionManager.isDeviceSupported
     private let sessionManager = ARSessionManager()
 
     /// MainActor 격리 deinit은 iOS 17 back-deploy 경로(swift_task_deinitOnExecutor)에서
     /// 크래시한다 (시뮬레이터 테스트에서 재현). 정리할 격리 상태가 없으므로 nonisolated로 해제.
+    /// 출력 루프 Task는 [weak self]라 VM이 해제되면 매니저·스트림이 닫히며 스스로 끝난다.
     nonisolated deinit {}
 
     init() {
-        #if SCAN_DIAGNOSTICS
-        sessionManager.onDiagnostics = { [weak self] value in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.diagnostics = value }
-            }
-        }
-        #endif
-        // Task는 실행 순서를 보장하지 않아 이벤트/스냅샷이 뒤집힐 수 있다 — main 큐(FIFO)로 hop.
-        sessionManager.onSnapshot = { [weak self] snapshot in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    self?.snapshot = snapshot
-                    #if SCAN_DIAGNOSTICS
-                    self?.diagnosticSnapshotTime = ProcessInfo.processInfo.systemUptime
-                    #endif
-                }
-            }
-        }
-        sessionManager.onEvent = { [weak self] event in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.handle(event) }
+        // 단일 스트림 for await — 큐 → MainActor hop이 한 곳이고 순서가 스트림에서 보장된다.
+        Task { [weak self, outputs = sessionManager.outputs] in
+            for await output in outputs {
+                guard let self else { return }
+                self.apply(output)
             }
         }
     }
 
-    /// internal: handle 분기가 넷을 넘어 test-policy 전환 조건 충족 — `ScanViewModelTests`가 직접 호출.
+    /// 출력 하나를 상태로 반영. internal: `ScanViewModelTests`가 직접 호출.
+    func apply(_ output: ScanOutput) {
+        switch output {
+        case .snapshot(let value):
+            snapshot = value
+            #if SCAN_DIAGNOSTICS
+            diagnosticSnapshotTime = ProcessInfo.processInfo.systemUptime
+            #endif
+            if isMapExpanded { autoFitWorldWindowIfNeeded() }   // 첫 스냅샷 전에 열렸으면 도착 시 재시도
+        case .event(let event):
+            handle(event)
+        case .mesh(let mesh):
+            liveMesh = mesh
+            #if SCAN_DIAGNOSTICS
+            diagnosticMeshTime = ProcessInfo.processInfo.systemUptime
+            #endif
+        case .pointCloud(let cloud):
+            pointCloud = cloud
+        case .plyFile(let url):
+            exportURL = url
+        #if SCAN_DIAGNOSTICS
+        case .diagnostics(let value):
+            diagnostics = value
+        #endif
+        }
+    }
+
+    /// 이벤트 → 배지 상태. internal: `ScanViewModelTests`가 직접 호출.
     func handle(_ event: ScanEvent) {
         #if SCAN_DIAGNOSTICS
         switch event {
@@ -109,16 +161,6 @@ final class ScanViewModel {
     /// ARView가 소유한 세션을 파이프라인에 연결. View → ViewModel → Model 경로 유지용.
     func attach(session: ARSession) {
         sessionManager.attach(to: session)
-        startMeshRefresh()
-    }
-
-    /// 미니맵 배경 mesh를 1.5초마다 재생성 — 스캔 화면이 살아 있는 동안 계속.
-    /// VM은 앱 수명과 같아 타이머 해제는 두지 않는다.
-    private func startMeshRefresh() {
-        meshRefreshTimer?.invalidate()
-        meshRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshLiveMesh() }   // 미변경·스캔 전엔 내부에서 스킵
-        }
     }
 
     // MARK: - 스캔 제어
@@ -129,26 +171,6 @@ final class ScanViewModel {
         #endif
         sessionManager.startAccumulating()
         state = .scanning
-        // 0.6초 뒤 1회 빌드 — 타이머 틱(최대 1.5초)보다 빠르되, 시작 순간의 와이어프레임
-        // 첫 렌더와 수만 정점 빌드·업로드가 겹쳐 GPU가 붐비지 않게 한 박자 미룬다.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            MainActor.assumeIsolated { self?.refreshLiveMesh() }
-        }
-    }
-
-    /// liveMesh 1회 갱신. 같은 직렬 큐라 startAccumulating의 hasStarted 설정 뒤에 실행된다.
-    private func refreshLiveMesh() {
-        sessionManager.exportColoredMesh { [weak self] mesh in
-            guard let mesh else { return }
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    self?.liveMesh = mesh
-                    #if SCAN_DIAGNOSTICS
-                    self?.diagnosticMeshTime = ProcessInfo.processInfo.systemUptime
-                    #endif
-                }
-            }
-        }
     }
 
     func pause() {
@@ -175,29 +197,6 @@ final class ScanViewModel {
         state = .ready
     }
 
-    /// 현재 격자를 .ply로 임시 파일에 써서 exportURL 발행 — 전체화면 미니맵의 공유 버튼용 (선택 요구사항: 내보내기).
-    /// 쓰기 실패 시 URL을 발행하지 않는다 — 이전 스캔의 stale 파일이 공유되는 것을 막는다 (버튼 미표시).
-    func prepareExport() {
-        exportURL = nil
-        sessionManager.exportPly { [weak self] text in
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("scan.ply")
-            let written = (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.exportURL = written ? url : nil }
-            }
-        }
-    }
-
-    /// 3D 뷰어 점군 fallback 준비 — mesh는 liveMesh(주기 갱신)를 그대로 쓴다.
-    func preparePointCloud() {
-        pointCloud = nil
-        sessionManager.exportPointCloud { [weak self] cloud in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.pointCloud = cloud }
-            }
-        }
-    }
-
     /// 일시 오류(트래킹 실패, 카메라 점유 등) 후 재시도. 권한 거부는 설정 변경 없이는 복구 불가.
     func retry() {
         fatalMessage = nil
@@ -206,5 +205,58 @@ final class ScanViewModel {
         isInterrupted = false
         trackingMessage = nil
         reset()
+    }
+
+    // MARK: - 전체화면 지도 제어
+
+    /// 열 때 스캔 중이면 자동 일시정지 — 결과를 보는 동안 데이터·mesh가 흐르지 않게 (뒤틀림·라벨 유동 방지).
+    func openExpandedMap() {
+        #if SCAN_DIAGNOSTICS
+        markDiagnosticEvent("전체화면 열기")
+        #endif
+        resumeAfterExpand = (state == .scanning)
+        if resumeAfterExpand { pause() }
+        isMapExpanded = true
+        exportURL = nil
+        pointCloud = nil
+        sessionManager.exportPly()          // ShareLink용 — 결과는 .plyFile
+        sessionManager.exportPointCloud()   // 3D 전환 시 바로 보이게 미리 준비
+        autoFitWorldWindowIfNeeded()
+    }
+
+    func closeExpandedMap() {
+        #if SCAN_DIAGNOSTICS
+        markDiagnosticEvent("전체화면 닫기")
+        #endif
+        isMapExpanded = false
+        measurePoints = []
+        viewCenter = nil; viewRadius = 5
+        mapViewMode = .map2D
+        frozenMesh = nil
+        // 열기 전이 스캔 중이었을 때만 복귀 — 수동 일시정지 상태는 존중
+        if resumeAfterExpand { start() }
+        resumeAfterExpand = false
+    }
+
+    /// 팬 — 세계 창 중심 이동.
+    func panWorldWindow(to center: SIMD2<Float>) { viewCenter = center }
+
+    /// 줌 — 반경을 범위 안으로.
+    func zoomWorldWindow(radius: Float) {
+        viewRadius = min(max(radius, Self.viewRadiusRange.lowerBound), Self.viewRadiusRange.upperBound)
+    }
+
+    /// 2D 전체화면 탭 → 측정점. mesh 배경(세계 창 매핑)에서만 유효 —
+    /// 격자 fallback은 다른 매핑이라 측정을 받지 않는다.
+    func addMeasurePoint(world: SIMD2<Float>) {
+        guard liveMesh?.positions.isEmpty == false else { return }
+        measurePoints = measurePoints.count >= 2 ? [world] : measurePoints + [world]
+    }
+
+    /// 세계 창 auto-fit 초기화: 관측 영역 중심 + 반경 (스냅샷 crop 기반). 이미 설정돼 있으면 유지.
+    private func autoFitWorldWindowIfNeeded() {
+        guard viewCenter == nil, let snapshot else { return }
+        viewCenter = snapshot.worldPoint(normalized: CGPoint(x: 0.5, y: 0.5))
+        viewRadius = max(snapshot.cropSideMeters / 2, 2)
     }
 }

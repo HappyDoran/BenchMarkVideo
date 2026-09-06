@@ -13,7 +13,8 @@ description: 이 저장소의 MVVM 계층 배치 규칙. 파일을 추가·이�
 App  →  View  →  ViewModel  →  Model
 ```
 
-- `View`는 `ViewModel`과 Model의 불변 값 타입(`MinimapSnapshot`, `ScanEvent`, `ColoredMesh`, `GridPointCloud`)만 참조한다. Model 객체(`ARSessionManager`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)를 직접 호출하지 않는다.
+- `View`는 `ViewModel`과 Model의 불변 값 타입(`MinimapSnapshot`, `ScanEvent`, `ScanOutput`, `ColoredMesh`, `GridPointCloud`)만 참조한다. Model 객체(`ARSessionManager`, `ScanPipeline`, `OccupancyGrid`, `MinimapRenderer`, `DepthFrameProcessor`)를 직접 호출하지 않는다. 화면 상태(전체화면 열림, 측정점, 세계 창)는 View의 `@State`가 아니라 ViewModel이 소유한다 — View의 `@State`는 제스처 진행 중 기준값·마운트 지연 같은 순수 표시 임시값만.
+- Model → ViewModel 출력은 `ARSessionManager.outputs`(`AsyncStream<ScanOutput>`) 하나로만 흐른다. 새 출력이 필요하면 콜백을 추가하지 말고 `ScanOutput` case를 추가한다.
 - `ViewModel`은 `Model`을 소유·호출하고 `View`를 모른다. `SwiftUI`·`UIKit`을 import하지 않는다 (`ARKit`은 세션 타입 때문에 허용).
 - `Model`은 `ViewModel`·`View`를 모른다. `SwiftUI`·`UIKit`·`Observation`을 import하지 않는다. 최상위 타입은 `nonisolated`를 명시한다.
 - 위 규칙은 `scripts/check-structure.sh`가 grep으로 검사한다. 스크립트가 잡지 못하는 위반(간접 참조 등)은 리뷰에서 본다.
@@ -28,7 +29,8 @@ App  →  View  →  ViewModel  →  Model
 | UI 상태 enum, 이벤트 → 상태 변환 | 해당 `ViewModel` 파일 안 | |
 | 파이프라인 단계 (순수 함수) | `Model/<Name>.swift`, `nonisolated enum` | 동사형 (`Processor`, `Renderer`) |
 | 큐 전용 가변 상태 | `Model/<Name>.swift`, `nonisolated final class` | |
-| 계층을 넘는 값 (스냅샷, 이벤트) | 생산하는 Model 파일 안, `Sendable` 불변 struct/enum | |
+| 계층을 넘는 값 (스냅샷, 이벤트) | 생산하는 Model 파일 안, `Sendable` 불변 struct/enum. Model → ViewModel은 `ScanOutput` case로 |
+| 파이프라인 단계 추가 (누적·렌더 계열) | `ScanPipeline.process` 안 또는 그것이 호출하는 순수 함수. 게이트 판정은 `ARSessionManager` | |
 | 튜닝 파라미터 | 사용하는 Model 타입의 `static let` 상수 + `DESIGN.md` 표 | |
 
 - 폴더는 네 개로 유지한다. 하위 폴더는 같은 계층 파일이 8개를 넘어 탐색이 불편해질 때만 만든다.

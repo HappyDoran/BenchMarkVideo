@@ -91,7 +91,7 @@ Claude  → CLAUDE.md (symlink) → AGENTS.md → .claude/skills/<skill>/SKILL.m
 | --- | --- |
 | 문서 | 필수 문서 존재, 에이전트용 문서 frontmatter(`title`, `kind`, `last_verified`; 산출 문서 `README.md`·`LLM_REPORT.md` 제외), 문서 안 인라인 코드 경로(`*.swift`, `*.md`, `*.sh`)의 실제 존재 |
 | 진입점·빌드 경계 | `CLAUDE.md → AGENTS.md` symlink, `.claude/skills/<n>/SKILL.md → .codex/skills/<n>/SKILL.md` symlink, skill frontmatter `name` 일치, 고아 symlink 없음, `SCAN_DIAGNOSTICS`는 project Debug 한 곳에만 정의·Release 정의 금지 |
-| 배치 | 모든 앱 `.swift`가 `App/ Model/ ViewModel/ View/` 아래. 테스트는 `BenchMarkVideoTests/<Type>Tests.swift`, Model 세 타입의 테스트 파일 존재, View·ViewModel 미참조 |
+| 배치 | 모든 앱 `.swift`가 `App/ Model/ ViewModel/ View/` 아래. 테스트는 `BenchMarkVideoTests/<Type>Tests.swift`, Model 네 타입(`ScanPipeline` 포함)의 테스트 파일 존재, View·ViewModel 미참조 |
 | 계층 규칙 | `Model/`: `SwiftUI`·`UIKit`·`Observation` import 금지, ViewModel·View 타입 참조 금지, 최상위 타입 `nonisolated` 명시. `ViewModel/`: `SwiftUI`·`UIKit`·`RealityKit` import 금지, View 타입 참조 금지. `View/`: Model 객체 타입 참조 금지, `DispatchQueue` 사용 금지 |
 
 검사는 grep 기반이다. 간접 참조, 의미적 위반, 큐 밖에서의 상태 접근은 잡지 못한다 — 그것은 `TECH_RULES.md` 금지 표와 리뷰가 담당한다.

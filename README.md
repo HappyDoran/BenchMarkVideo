@@ -82,7 +82,7 @@ open BenchMarkVideo.xcodeproj
 
 | 항목 | 상태 |
 | --- | --- |
-| 테스트 코드 | ✅ `BenchMarkVideoTests/` 32건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·ViewModel 상태 전이·.ply 직렬화·복셀 색 EMA·진단 창 집계 |
+| 테스트 코드 | ✅ `BenchMarkVideoTests/` 41건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·파이프라인 궤적·시작 높이·reset 세대·mesh 스케줄·ViewModel 출력 반영·전체화면 전이·.ply 직렬화·복셀 색 EMA·진단 창 집계 |
 | auto-fit, 이동 궤적 | ✅ 위 R2 표 |
 | 성능 최적화 전후 비교 | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
 | 거리·면적 측정 | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
@@ -94,7 +94,8 @@ open BenchMarkVideo.xcodeproj
 
 ```
 ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.processing)   [Model]
-                                     │ 스로틀(≥100ms) + 샘플링(stride 4, confidence≥medium)
+                                     │ 스로틀(≥100ms) + 게이트(tracking·안정화) → ScanPipeline
+                                     │ 샘플링(stride 4, confidence≥medium)
                                      ▼
                           DepthFrameProcessor (unprojection, 순수 함수 — 단위 테스트)  [Model]
                                      ▼
@@ -104,10 +105,10 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
                                      │
       VoxelColorStore (월드 복셀 색) ─┤─ GridExporter (.ply 점군)                    [Model]
       + ARMeshAnchor → MeshBuilder (정점 색 ColoredMesh)                            [Model]
-                                     ▼  onSnapshot / onEvent / mesh·cloud (Sendable)
-                          ScanViewModel (@Observable, MainActor)                    [ViewModel]
+                                     ▼  AsyncStream<ScanOutput> 하나 (snapshot / event / mesh / pointCloud / plyFile)
+                          ScanViewModel (@Observable, MainActor, for await로 상태 반영) [ViewModel]
                                      ▼
-        ContentView · MinimapView · ARPreviewView                                   [View]
+        ContentView · ExpandedMapView · MinimapView · ARPreviewView                 [View]
         MeshTopDownView (미니맵 배경) · PointCloudViewerView (2D/3D 뷰어·측정)       [View]
 ```
 
@@ -181,7 +182,7 @@ xcrun devicectl device install app --device <CoreDevice 식별자> \
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ```bash
-# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 32건
+# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 41건
 xcodebuild test -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
 
@@ -198,6 +199,8 @@ scripts/check-structure.sh
 ## 실기기 수동 검증 매트릭스
 
 런타임 동작을 바꾼 커밋은 아래 시나리오 중 영향받는 항목을 실기기에서 확인하고 결과를 커밋 본문에 남긴다. "확인 방법"이 실패 판정 기준이다.
+
+> **2026-09-06 단방향 리팩토링 이후 미검증.** 출력 스트림 통합·`ScanPipeline` 분리·전체화면 상태 승격은 컴파일·단위 테스트 41건·구조 검사만 통과했다. 아래 결과 열은 리팩토링 전 빌드의 판정이며, 스캔 시작·일시정지·초기화·실시간 갱신·전체화면·내보내기·3D 뷰어·세션 중단 행은 실기기 재확인 전까지 "미검증"으로 읽는다.
 
 결과 열: iPhone 15 Pro (iPhone16,1) × iOS 26.6, 2026-09-04 — 사용자 촬영 화면 녹화 22편을 1fps 프레임 추출로 판독한 회차. 세부 근거는 해당 일자 docs 커밋 본문. 2026-09-06 3차 녹화(Release·Debug 계측 빌드 각 1편, 약 3.5분)로 스캔 시작·일시정지·실시간 갱신·전체화면·성능 행을 재확인했다. 수치와 판독 한계는 `DESIGN.md` 10절에 있다.
 

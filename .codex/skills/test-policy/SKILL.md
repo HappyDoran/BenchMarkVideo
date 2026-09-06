@@ -20,8 +20,8 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 
 - 타깃 `BenchMarkVideoTests` (호스트 앱 필요, 시뮬레이터 실행). 파일은 `BenchMarkVideoTests/<Type>Tests.swift`.
 - 대상은 `Model/`만. `sceneDepth` 없이 실행 가능한 순수 함수와 큐 전용 객체의 동기 메서드를 직접 호출한다. `CVPixelBuffer`는 테스트에서 직접 만든다.
-- View는 테스트하지 않는다. ViewModel은 `ScanViewModel.handle` 분기가 넷이 된 시점(`meshReady` 추가)에 전환 조건이 충족돼 `internal`로 열었다 — 이벤트 처리와 제어 메서드의 상태 전이만 `ScanViewModelTests.swift`에서 검증하고, 세션 부작용(ARSession)은 여전히 실기기 대상이다.
-- `ARSessionManager`는 delegate 콜백이 `ARFrame`을 요구해 단위 테스트 대상이 아니다. 실기기 매트릭스로 본다.
+- View는 테스트하지 않는다. ViewModel은 `ScanViewModel.handle` 분기가 넷이 된 시점(`meshReady` 추가)에 전환 조건이 충족돼 `internal`로 열었다 — 출력 반영(`apply`)·이벤트 처리·제어 메서드·전체화면 상태 전이만 `ScanViewModelTests.swift`에서 검증하고, 세션 부작용(ARSession)은 여전히 실기기 대상이다.
+- `ARSessionManager`는 delegate 콜백이 `ARFrame`을 요구해 단위 테스트 대상이 아니다. 실기기 매트릭스로 본다. 누적·궤적·mesh 주기는 `ScanPipeline`으로 분리돼 `FrameInput` 값으로 직접 호출해 테스트한다 (깊이 없는 프레임으로 궤적·시작 높이·reset·스케줄, 깊이는 `DepthFrameProcessorTests`가 담당).
 
 ## 판정 기준: 테스트가 필수인 코드
 
@@ -34,12 +34,13 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 | 격자 인덱싱과 범위 밖 처리 | **필수** | `OccupancyGridTests.swift` |
 | 높이 밴드 분기 (벽/바닥/천장), bounds, reset | **필수** | `OccupancyGridTests.swift` |
 | crop 크기와 정규화 좌표 | 필수 | `MinimapRendererTests.swift` |
-| 상태 머신 전이 (`ScanState`, 이벤트 → 배지 상태) | **필수** (분기 4개로 전환 조건 충족) | `ScanViewModelTests.swift` |
+| 궤적 stride·게이트, 시작 높이 고정, reset 세대·빈 스냅샷, mesh 첫 지연·주기·미변경 스킵 | **필수** — 깨지면 궤적이 튀거나 mesh가 멈춘다 | `ScanPipelineTests.swift` |
+| 상태 머신 전이 (`ScanState`, 출력 → 상태, 전체화면 자동 일시정지·복귀, 측정점 규칙) | **필수** (분기 4개로 전환 조건 충족) | `ScanViewModelTests.swift` |
 | 녹화 진단 창 집계·연속 시간 reset | **필수** — 계측 수치 자체의 오판 방지 | `ScanDiagnosticsTests.swift` |
 | 세션 lifecycle, 트래킹 경고, 권한 | 실기기 수동 | — |
 | 레이아웃·버튼 배선, 상수, 단순 위임 | 제외 | — |
 
-`scripts/check-structure.sh`는 세 Model 타입의 테스트 파일이 존재하는지, 테스트가 View를 참조하지 않는지(ViewModel은 `ScanViewModelTests.swift`에서만) 검사한다.
+`scripts/check-structure.sh`는 네 Model 타입(`DepthFrameProcessor`·`OccupancyGrid`·`MinimapRenderer`·`ScanPipeline`)의 테스트 파일이 존재하는지, 테스트가 View를 참조하지 않는지(ViewModel은 `ScanViewModelTests.swift`에서만) 검사한다.
 
 ## 새 기능·수정 시
 

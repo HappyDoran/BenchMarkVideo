@@ -35,7 +35,8 @@ last_verified: 2026-09-06
 │   ├── DepthFrameProcessorTests.swift    # intrinsics 스케일, flipYZ, column-major, heading, 버퍼 필터
 │   ├── OccupancyGridTests.swift          # cellIndex, 벽/바닥/천장 분기, bounds, reset
 │   ├── MinimapRendererTests.swift        # crop 크기, 정규화 좌표·역변환, 이미지 재사용
-│   ├── ScanViewModelTests.swift          # 이벤트 → 배지 상태, retry·reset 전이
+│   ├── ScanViewModelTests.swift          # 출력 반영(apply)·이벤트 → 배지 상태·retry·reset·전체화면 전이
+│   ├── ScanPipelineTests.swift           # 궤적 stride·게이트, 시작 높이 고정, reset 세대, mesh 스케줄
 │   ├── GridExporterTests.swift           # .ply 헤더·벽/바닥 셀 좌표·색·점군 파생
 │   ├── VoxelColorStoreTests.swift        # 복셀 색 EMA·성긴 fallback·reset
 │   ├── MeshBuilderTests.swift            # 밀도 기반 바닥 추정 (반사 허상 무시)
@@ -44,17 +45,19 @@ last_verified: 2026-09-06
     ├── App/
     │   └── BenchMarkVideoApp.swift    # @main. ContentView 진입
     ├── Model/                            # nonisolated, scan.processing 큐 전용
-    │   ├── ARSessionManager.swift        # ARSession delegate, 스로틀, 궤적, ScanEvent 발행
+    │   ├── ARSessionManager.swift        # ARSession lifecycle·delegate, 스로틀·게이트(FrameGate), outputs 스트림 소유
+    │   ├── ScanPipeline.swift            # ScanOutput 정의. 누적·궤적·스냅샷·mesh 주기·내보내기 (큐 전용)
     │   ├── DepthFrameProcessor.swift     # depth → 월드 점 unprojection, heading (순수 함수)
     │   ├── OccupancyGrid.swift           # 5cm × 400×400 hit 격자, 높이 밴드 필터
     │   ├── MinimapRenderer.swift         # 격자 → CGImage crop, MinimapSnapshot 정의
     │   ├── GridExporter.swift            # 격자 → 점군(GridPointCloud)·.ply 텍스트 (뷰어·내보내기 공용)
     │   ├── MeshBuilder.swift             # 복셀 색 저장소 + ARKit mesh → 정점 색 mesh (3D 뷰어)
-    │   └── ScanDiagnostics.swift         # SCAN_DIAGNOSTICS 녹화 진단 값·0.5초 고정 집계 창
+    │   └── ScanDiagnostics.swift         # SCAN_DIAGNOSTICS 진단 값·0.5초 집계 창·계측 수집기(signpost·perf 로그)
     ├── ViewModel/                        # MainActor
-    │   └── ScanViewModel.swift           # @Observable 상태 허브, ScanState, 세션 attach 중계
+    │   └── ScanViewModel.swift           # @Observable 상태 허브 — outputs for await, ScanState, 전체화면·측정·세계 창 상태
     ├── View/                             # SwiftUI, ViewModel과 불변 스냅샷만 참조
     │   ├── ContentView.swift             # 화면 조립, 상태바, 제어 버튼, 예외 화면
+    │   ├── ExpandedMapView.swift         # 전체화면 2D 세계 창(팬·줌·측정)·3D 뷰어·내보내기 — 상태는 ViewModel
     │   ├── ARPreviewView.swift           # UIViewRepresentable — ARView 생성, 세션 콜백. SCAN_DIAGNOSTICS FPSMonitor(@Observable, 3초 창)
     │   ├── MinimapView.swift             # 미니맵 이미지 + 궤적·마커 Canvas, 전체화면 팬·줌 변환
     │   ├── PointCloudViewerView.swift    # SceneKit 정점 색 mesh/점군 3D 뷰어 (회전·줌·팬·바닥 탭 측정)
@@ -68,12 +71,12 @@ last_verified: 2026-09-06
 | 계층 | 실행 문맥 | 담는 것 | 담지 않는 것 |
 | --- | --- | --- | --- |
 | `App/` | MainActor | 앱 진입점, 루트 View 선택 | 비즈니스 로직 |
-| `Model/` | `scan.processing` 큐 | ARKit 세션 제어, 깊이 파이프라인, 격자, 렌더 비트맵, 이벤트·스냅샷 값 타입 | SwiftUI·UIKit·Observation import, ViewModel 참조 |
-| `ViewModel/` | MainActor | UI 상태(`ScanState`, 스냅샷, 경고 메시지), 이벤트 → 상태 변환, Model 제어 호출 | SwiftUI View 타입, 레이아웃 |
+| `Model/` | `scan.processing` 큐 | ARKit 세션 제어·게이트(`ARSessionManager`), 누적·렌더·mesh·내보내기(`ScanPipeline`), 격자, 출력 값 타입(`ScanOutput`) | SwiftUI·UIKit·Observation import, ViewModel 참조 |
+| `ViewModel/` | MainActor | UI 상태(`ScanState`, 스냅샷, 경고, 전체화면·측정·세계 창), 출력 스트림 → 상태 변환, Model 제어 호출 | SwiftUI View 타입, 레이아웃, 큐·타이머 |
 | `View/` | MainActor | SwiftUI 레이아웃, 사용자 입력 → ViewModel 메서드 | Model 객체 직접 호출, 큐 접근 |
 
 ## 현재 예외
 
-- `MinimapSnapshot`·`ScanEvent`·`ColoredMesh`·`GridPointCloud`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
+- `MinimapSnapshot`·`ScanEvent`·`ScanOutput`·`ColoredMesh`·`GridPointCloud`는 `Model/`에 정의된 값 타입이지만 `View/`·`ViewModel/`이 직접 읽는다. 불변 `Sendable`이므로 허용 (`TECH_RULES.md` 금지 표의 예외 항목).
 - `ARPreviewView`는 `ARSession` 타입을 콜백 시그니처에 쓰기 위해 `ARKit`을 import한다. Model 객체를 참조하지는 않는다.
-- 테스트는 Model 계층만 대상이다. ViewModel·View 테스트는 없고, 도입 조건은 `.codex/skills/test-policy/SKILL.md`.
+- 테스트는 Model 계층과 `ScanViewModel`(출력 반영·상태 전이)만 대상이다. View 테스트는 없다 — `.codex/skills/test-policy/SKILL.md`.

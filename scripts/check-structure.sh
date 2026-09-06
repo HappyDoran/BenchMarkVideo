@@ -57,11 +57,11 @@ TESTS=BenchMarkVideoTests
 find "$TESTS" -name '*.swift' 2>/dev/null | grep -vE "^$TESTS/[A-Za-z0-9_]+Tests\.swift$" \
   | while read -r f; do err "테스트 파일 이름·위치 규칙 위반 (<Type>Tests.swift): $f"; done
 # View는 테스트 금지. ScanViewModel은 handle 분기 4개로 test-policy 전환 조건 충족 — 자기 테스트 파일에서만 허용.
-grep -lE '\b(ContentView|MinimapView|ARPreviewView)\b' "$TESTS"/*.swift 2>/dev/null \
+grep -lE '\b(ContentView|MinimapView|ARPreviewView|ExpandedMapView|ScanDebugView)\b' "$TESTS"/*.swift 2>/dev/null \
   | while read -r f; do err "테스트가 View 참조 (View 제외): $f"; done
 grep -lE '\bScanViewModel\b' "$TESTS"/*.swift 2>/dev/null | grep -v "ScanViewModelTests.swift" \
   | while read -r f; do err "ScanViewModel 참조는 ScanViewModelTests.swift에서만: $f"; done
-for m in DepthFrameProcessor OccupancyGrid MinimapRenderer; do
+for m in DepthFrameProcessor OccupancyGrid MinimapRenderer ScanPipeline; do
   [ -f "$TESTS/${m}Tests.swift" ] || err "Model 순수 로직 테스트 없음: $TESTS/${m}Tests.swift"
 done
 
@@ -69,8 +69,8 @@ done
 check_absent() { # dir pattern message
   grep -lE "$2" "$SRC/$1"/*.swift 2>/dev/null | while read -r f; do err "$3: $f"; done
 }
-VIEW_TYPES='ContentView|MinimapView|ARPreviewView'
-MODEL_OBJECTS='ARSessionManager|OccupancyGrid|MinimapRenderer|DepthFrameProcessor|VoxelColorStore|GridExporter'
+VIEW_TYPES='ContentView|MinimapView|ARPreviewView|ExpandedMapView|ScanDebugView'
+MODEL_OBJECTS='ARSessionManager|ScanPipeline|OccupancyGrid|MinimapRenderer|DepthFrameProcessor|VoxelColorStore|GridExporter'
 check_absent Model     '^import (SwiftUI|UIKit|Observation)$'   "Model에서 UI 프레임워크 import"
 check_absent Model     "\b(ScanViewModel|$VIEW_TYPES)\b"         "Model이 상위 계층 참조"
 check_absent ViewModel '^import (SwiftUI|UIKit|RealityKit)$'    "ViewModel에서 UI 프레임워크 import"
