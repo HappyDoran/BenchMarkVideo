@@ -182,7 +182,7 @@
 - **어긋난 지점 3곳**: ① Model → ViewModel 출력이 콜백 3개 + 1.5초 `Timer` pull이라 순서 보장을 위해 `DispatchQueue.main.async` FIFO 트릭을 수동으로 두고 있었다. ② `ARSessionManager` 472줄에 세션·게이트·누적·mesh 빌드·진단이 섞여 있었다. ③ `ContentView`가 `@State` 11개로 전체화면 지도의 상태 머신을 숨겨 갖고 있었다.
 - **사람 결정**: LLM은 시간(하루 반)과 마감을 들어 ①만 권했으나, 사람이 셋 다 진행하고 데모 영상은 그 뒤에 찍기로 결정.
 - **구현**: `ScanOutput` enum + `AsyncStream`(무제한 버퍼 — 이벤트 유실 금지) 하나로 통합, ViewModel은 MainActor `Task`의 `for await` 한 곳에서 `apply`. mesh 주기는 파이프라인이 프레임 시각으로 스스로 잡아 ViewModel의 `Timer`·`asyncAfter`가 사라졌다. `ScanPipeline`(누적·궤적·렌더·mesh·내보내기)과 `ScanDiagnosticsCollector`(signpost·perf 로그·창 집계)를 분리해 매니저는 세션·게이트 판정(`FrameGate`)만 남았고, 매니저의 `#if SCAN_DIAGNOSTICS`는 14곳에서 5곳으로 줄었다. 전체화면 지도는 `ExpandedMapView` + ViewModel 상태(열림·측정점·세계 창·3D 고정 mesh)로 옮겨 `ContentView`는 469 → 221줄.
-- **검증**: 컴파일, 구조 검사, 단위 테스트 41건(파이프라인 5건·ViewModel 4건 추가). 실기기는 미검증 — `README.md` 매트릭스에 리팩토링 이후 미검증 표기를 두고 재촬영 대상으로 남겼다.
+- **검증**: 컴파일, 구조 검사, 단위 테스트 41건(파이프라인 5건·ViewModel 4건 추가). 실기기는 사람이 Release 빌드로 166초 한 테이크(시작 → 걷기 → 전체화면 측정·3D·내보내기 → 닫기 → 일시정지 → 홈 복귀 → 재개 → 초기화 → 재시작)를 촬영하고 LLM이 1fps·2fps 프레임으로 판독해 영향 행 전부 통과 처리. 순서 뒤집힘(초기화 직후 옛 스냅샷 잔상)이나 mesh 정지 없음.
 - **교훈**: "단방향"은 프레임워크 이름이 아니라 출력 경로의 개수다. 경로가 하나면 순서·hop·테스트가 전부 구조에서 따라온다.
 
 ## 4. 핵심 프롬프트 발췌

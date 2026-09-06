@@ -363,5 +363,5 @@ Release의 DisplayLink 간격이 16.7ms를 넘은 구간은 셋뿐이다: 시작
 4. ~~드리프트 대응~~ — 시도 구현 (12절 재로컬라이즈 안정화 창). 격자 이동 보정은 실측상 방 규모 드리프트가 셀 이하라 불요 판정.
 5. ~~미니맵 팬·줌~~ — 완료: 전체화면 세계 창(중심+반경) 방식.
 6. ~~스캔 결과 내보내기~~ — 완료: 관측 셀 .ply + ShareLink (`GridExporter`).
-7. ~~단방향 출력 통합·파이프라인 분리·전체화면 상태 승격~~ — 완료 (2026-09-06): `AsyncStream<ScanOutput>` 하나, `ScanPipeline` 분리, `ExpandedMapView` + ViewModel 상태. 실기기 재검증은 매트릭스 참고.
+7. ~~단방향 출력 통합·파이프라인 분리·전체화면 상태 승격~~ — 완료 (2026-09-06): `AsyncStream<ScanOutput>` 하나, `ScanPipeline` 분리, `ExpandedMapView` + ViewModel 상태. 같은 날 Release 실기기 한 테이크로 재검증 통과 (`README.md` 매트릭스).
 8. **키프레임 텍스처 베이킹** — 현재 3D는 정점 색 근사. 참고 영상 수준의 면 단위 사진 텍스처는 스캔 중 키프레임(이미지+포즈) 저장 → 삼각형별 최적 프레임 선택 → UV 아틀라스 베이킹이 필요하다. 공개 참고 코드: TokyoYoshida/ExampleOfiOSLiDAR (MIT, 단일 프레임 투영).
