@@ -5,7 +5,7 @@ iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 
 | 항목 | 값 |
 | --- | --- |
 | 개발 환경 | Xcode 26.1, Swift 6 언어 모드, iOS 17.0 이상 (`@Observable`이 iOS 17부터) |
-| 테스트 기기 | iPhone 15 Pro (iPhone16,1, LiDAR), iOS 26.6 — 2026-09-04 실기기 검증 완료 (화면 녹화 22편 프레임 판독), 2026-09-06 3차 녹화 Development 2편·Production 1편과 Production 실행 영상 재판독 |
+| 테스트 기기 | iPhone 15 Pro (iPhone16,1, LiDAR), iOS 26.6 — 2026-09-04 실기기 검증 완료 (화면 녹화 22편 프레임 판독), 2026-09-06 3차 Release·Debug 계측 빌드 각 1편(약 3.5분) OCR 판독 |
 | 아키텍처 | MVVM (`App / Model / ViewModel / View`) — 근거 `DESIGN.md` 1.1절 |
 | 산출 문서 | 설계 `DESIGN.md` · LLM 활용 리포트 `LLM_REPORT.md` · 이 README |
 | 에이전트 문서 | 작업 규범 `AGENTS.md` · 체계 설명 `docs/AI_AGENT_HARNESS.md` |
@@ -120,16 +120,14 @@ Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다
 
 ## 성능 측정 결과 (R3)
 
-iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04, 3분) + 최종 빌드 재검증(09-05, 4.5분·일시정지 포함). 전체 표·해석은 `DESIGN.md` 10절:
+iPhone 15 Pro · iOS 26.6. Development(Debug) 자가 계측 2회 — 1차(09-04, 3분) + 최종 빌드 재검증(09-05, 4.5분·일시정지 포함) — 와 3차 Release·Debug 계측 빌드 판독(09-06). 전체 표·해석은 `DESIGN.md` 10절:
 
 - 콜백 처리(최종 빌드, 3초 창): p50 12~14ms / p95 13~16ms / max 20.8ms. 100ms 처리 주기 안에서 시간 경과에 따른 저하 없이 평탄했고 전용 직렬 큐에서 실행되어 UI 60fps를 유지했다. 복셀 색 누적 추가 비용은 +1ms 수준.
 - 프레임당 처리 점: 970~3,072 — 설계 상한 준수.
 - 최종 빌드 4.5분 생존, 경고 없음. footprint 445 → 570MB — 증가분은 ARKit mesh 앵커·복셀 색(스캔 면적 비례), 앱 격자는 고정. 일시정지 40초 구간 처리 스킵·메모리 평탄 실증(mesh 재빌드 스킵).
 - UI fps: 60.0 (최저 59.9) — baseline 최악 부하와 최종 빌드(SCNView 미니맵 상시 렌더 포함) 모두에서 유지. 전체화면 전환 순간만 일시 하락.
 - 전후 비교(stride 1·스로틀 0 baseline 대비): 콜백 107.7ms → 11.9ms (약 9배), points/frame 49,152 → ≤3,072 (16배). baseline은 처리 큐 포화 + ARFrame 11~13개 적체 경고(카메라 공급 중단 직전) — 스로틀·샘플링이 이를 막는 실증. 상세 표는 `DESIGN.md` 10절.
-- 3차 비교 녹화 판독(09-06, 동일 공간·동선): 시작 → 첫 격자·mesh 0.6초, 격자 UI 지연 0.0초, mesh 1.5초 주기·hop 0.1초, 연속 누적 71.3초, 렌즈 가림 중 누적 고정·복귀 후 유령 벽 없음, 전체화면 중 mesh 재빌드 스킵 실증. Production은 걷기 구간 고유 프레임 99.8%(드롭 흔적 없음), Development는 96.0%였다. 이 회차는 두 빌드의 동일 조건 비교이며 R3의 3분 지속성 근거는 앞선 3분·4.5분 측정이다.
-- 3차 보충 Development 녹화(184초): 스캔 중 부하 탭에서 DisplayLink 60.0Hz/16.7ms, 콜백 p50 15.7/p95 18.1ms, 메모리 450.4MB/앱 실행 피크 517.7MB를 확인했다. 영상 중 초기화·전체화면 일시정지가 있어 184초 전체를 연속 스캔으로 간주하지 않는다.
-- Production 콜드 실행 별도 영상: 실행 애니메이션 시작 → 첫 카메라 프레임과 초기 미니맵 0.716초, 스캔 입력 → 첫 비어 있지 않은 격자 0.117초. 내부 처리 수치는 Development 진단 빌드에서, 최종 사용자 경로의 시작 시간과 화면 연속성은 Production에서 측정했다. 전체 표와 측정 조건은 `DESIGN.md` 10절.
+- **3차 Release 계측 빌드(09-06, 205초, 같은 동선 Debug 210초와 비교)**: 제출 빌드와 같은 `-O` 코드에 명령줄 조건으로 패널만 얹어 측정. 콜백 3초 창 p50 1.9ms / p95 2.8ms (최대 7.1ms), mesh CPU 빌드 중앙값 7.3ms, 메모리 388 → 590MB (피크 594.6MB), DisplayLink 60.0Hz·최대 간격 16.7ms 상시 (예외는 시작·발열 전환·전체화면 3구간). 같은 조건 Debug는 p50 23.4 / p95 28.1ms, DisplayLink 59.7Hz·간격 33ms 반복. 두 빌드 모두 3분 이상 연속 세션에서 강제 종료·경고 없음 (R3-2). 발열은 연속 촬영으로 `높음` 상태였고, 냉각 상태 재측정은 없다.
 
 ## 알려진 버그·제약
 
@@ -139,7 +137,7 @@ iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04,
 - 트래킹이 limited인 동안 누적·궤적 기록을 중단한다(normal 게이트). 단 극단적으로 흔들면 ARKit이 normal을 유지한 채 포즈가 오염돼 유령 셀·궤적 뻗침이 생길 수 있다 — 게이트로 걸러지지 않으며 초기화로 복구한다.
 - `excessiveMotion` 경고는 iPhone 15 Pro에서 유발 불가였다 (트래킹이 흔들기에 강함). 경고 경로 자체는 `insufficientFeatures`로 실증.
 - 트래킹 회복 직후 새 영역의 mesh는 ARKit 재구성 재개까지 수 초 뒤에 나타난다. 기존 영역은 즉시 보인다.
-- 트래킹 상실 직후 ARKit mesh 앵커가 일시적으로 비어 미니맵 배경이 mesh에서 격자 fallback으로 바뀔 수 있다 (09-06 녹화 관찰). 복귀 후 다음 1.5초 빌드에서 mesh가 돌아온다.
+- 트래킹 상실 직후 ARKit mesh 앵커가 일시적으로 비어 미니맵 배경이 mesh에서 격자 fallback으로 바뀔 수 있다 (09-06 Development 진단 녹화 관찰, 커밋 5111bae 본문). 복귀 후 다음 1.5초 빌드에서 mesh가 돌아온다.
 - 미니맵 회전 없음 — north-up 고정 원칙(R2-5). 팬·줌은 전체화면 세계 창으로 지원.
 
 ## 검증
@@ -163,7 +161,22 @@ iPhone 15 Pro · iOS 26.6, Development(Debug) 자가 계측 2회 — 1차(09-04,
 
 패널의 `UI 수신`은 SwiftUI에 값이 도착한 시점이며 GPU 표시 완료 시각이 아니다. 실제 벽이
 미니맵에 나타나는 지연, 격자와 mesh의 공간 정합, 화면 끊김은 패널과 녹화 화면을 함께 판독한다.
-Development 계측값과 Production 화면 판독을 함께 사용해 진단 수치와 최종 사용자 경로를 분리해 검증한다.
+Debug와 Release 계측 빌드의 수치를 같은 패널로 읽어 최적화 효과와 제출 빌드 기준 성능을 분리해 본다.
+
+**Release 계측 빌드.** 최적화된 코드의 내부 수치가 필요하면 pbxproj를 바꾸지 않고 명령줄에서만
+조건을 추가해 Release + `SCAN_DIAGNOSTICS` 빌드를 기기에 설치한다 (`scripts/check-structure.sh`가
+Release 구성 정의를 막으므로 이 경로가 유일하다). 제출 빌드와 같은 `-O` 코드에 패널만 얹힌 상태다.
+
+```bash
+# xcodebuild는 UDID(xcodebuild -showdestinations의 id), devicectl은 CoreDevice 식별자(devicectl list devices)를 쓴다 — 서로 다르다.
+xcodebuild build -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Production \
+  -configuration Release -destination 'id=<UDID>' -derivedDataPath /tmp/release-diag \
+  -allowProvisioningUpdates SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) SCAN_DIAGNOSTICS'
+xcrun devicectl device install app --device <CoreDevice 식별자> \
+  /tmp/release-diag/Build/Products/Release-iphoneos/BenchMarkVideo.app
+```
+
+패널 머리글이 `Release(-O) · 진단 ON`으로 바뀌어 녹화에서 Debug 계측 영상과 구분된다.
 
 코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
@@ -186,7 +199,7 @@ scripts/check-structure.sh
 
 런타임 동작을 바꾼 커밋은 아래 시나리오 중 영향받는 항목을 실기기에서 확인하고 결과를 커밋 본문에 남긴다. "확인 방법"이 실패 판정 기준이다.
 
-결과 열: iPhone 15 Pro (iPhone16,1) × iOS 26.6, 2026-09-04 — 사용자 촬영 화면 녹화 22편을 1fps 프레임 추출로 판독한 회차. 세부 근거는 해당 일자 docs 커밋 본문. 2026-09-06 3차 녹화 3편(Development 2·Production 1)과 Production 실행 영상으로 스캔 시작·일시정지·초기화·실시간 갱신·전체화면·트래킹 경고·성능 행을 재확인했다. 수치와 판독 한계는 `DESIGN.md` 10절에 있다.
+결과 열: iPhone 15 Pro (iPhone16,1) × iOS 26.6, 2026-09-04 — 사용자 촬영 화면 녹화 22편을 1fps 프레임 추출로 판독한 회차. 세부 근거는 해당 일자 docs 커밋 본문. 2026-09-06 3차 녹화(Release·Debug 계측 빌드 각 1편, 약 3.5분)로 스캔 시작·일시정지·실시간 갱신·전체화면·성능 행을 재확인했다. 수치와 판독 한계는 `DESIGN.md` 10절에 있다.
 
 | 시나리오 | 요구사항 | 확인 방법 | 결과 |
 | --- | --- | --- | --- |
@@ -204,7 +217,7 @@ scripts/check-structure.sh
 | 전체화면 전환 | R2-4 | 미니맵 탭 → 전체화면, 배경 탭 → 복귀 | 통과 |
 | 트래킹 경고 | R1-4 | 트래킹 limited 시 경고 배지, 앱 지속 | 통과 (`insufficientFeatures`로 실증. `excessiveMotion`은 유발 불가 — 알려진 제약 절) |
 | 세션 중단 | R1-4 | 앱을 백그라운드로 보냈다가 복귀 → "세션이 중단되었습니다" 배지가 떴다가 사라짐. 이어서 "위치 재인식 중…"이 잠깐 뜨고, 복귀 후 이전 미니맵이 그 자리에 유지됨 (원점 불변) | 통과 (약 4초 내 재개, 격자 같은 자리) |
-| 성능 | R3 | `DESIGN.md` 10절 측정 — FPS ≥30, 3분 스캔 중 강제 종료·메모리 경고 없음, 처리량 상한 준수 | 통과 — UI 60.0/최저 59.9fps, 3분 이상 생존·경고 없음, 프레임당 ≤3,072점. 09-06 Production 걷기 구간에서도 지속 드롭 흔적 없음 |
-| 녹화 진단 패널 | — | Development에서 패널 3탭 판독 가능, 격자만 보기 토글로 미니맵 배경 전환, 초기화 시 세대 증가 | 통과 (09-06) — 3탭과 스캔 중 부하 탭 판독, 격자·mesh 정합 일치, 세대 전환 확인. 재인식 안정화 gate는 09-04 별도 복귀 시나리오에서 검증 |
+| 성능 | R3 | `DESIGN.md` 10절 측정 — FPS ≥30, 3분 스캔 중 강제 종료·메모리 경고 없음, 처리량 상한 준수 | 통과 — UI 60.0/최저 59.9fps, 3분 이상 생존·경고 없음, 프레임당 ≤3,072점. 3차(09-06) Release 계측 빌드 205초·Debug 210초 연속 세션, Release 콜백 p50 1.9 / p95 2.8ms, DisplayLink 60.0Hz 상시 |
+| 녹화 진단 패널 | — | 계측 빌드에서 패널 3탭 판독 가능, 머리글이 빌드 구성을 표시, 격자만 보기 토글로 미니맵 배경 전환, 초기화 시 세대 증가, 전체화면 자동 일시정지가 gate `일시정지`로 표시 | 통과 (09-06) — 3차 Release·Debug 각 3.5분 OCR 판독으로 부하·갱신 탭과 머리글 `Release(-O)`/`Debug(-Onone)` 구분 확인. 좌표·기록 탭, 격자만 보기(격자·mesh 정합 일치), 초기화 세대 0 → 1 전환은 같은 날 Development 진단 녹화(139초·184초, 커밋 5111bae 본문)에서 확인. 재인식 안정화 gate는 09-04 별도 복귀 시나리오에서 검증 |
 
 결과 기록 형식: `기기 × iOS × 시나리오 × 결과(통과/실패/미검증)`. 실패는 `LLM_REPORT.md` 사례 후보이며, 파라미터를 바꾸면 `DESIGN.md` 근거를 갱신한다.
