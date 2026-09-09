@@ -1,7 +1,7 @@
 ---
 title: BenchMarkVideo 기술 스택과 구현 규칙
 kind: rule
-last_verified: 2026-09-06
+last_verified: 2026-09-09
 ---
 
 # 기술 스택 및 구현 규칙
@@ -28,7 +28,7 @@ last_verified: 2026-09-06
 - `ARCamera.intrinsics`는 **capturedImage(landscape) 해상도 기준**. depthMap(256×192)에 쓸 때는 해상도 비율로 스케일한다 (`DepthFrameProcessor.UnprojectionParams`).
 - unprojection 경로: `world = camera.transform × flipYZ × (K⁻¹·(u,v,1)·depth)`. flipYZ = diag(1,-1,-1) — 이미지 좌표(y-down, z-forward)를 ARKit 카메라 좌표(y-up, -z-forward)로 변환. **depthMap 픽셀을 버퍼 좌표 그대로 순회하므로 UI 회전(portrait)은 월드 좌표 경로에 영향 없음.**
 - 카메라 heading(yaw): 시선 = transform의 -z축을 xz평면에 투영. `atan2(-m.columns.2.x, m.columns.2.z)` — 항등 변환에서 0(-z 방향), 단위 테스트 `testHeadingIdentityIsZeroAndLookingPlusXIsHalfPi`가 고정.
-- 미니맵 방향: **월드 고정(north-up)**. 그리드 원점 = 스캔 시작 시 기기 위치. map col ∝ world x, map row ∝ world z.
+- 미니맵 방향: **월드 고정(north-up)**. 그리드 중앙 = ARKit 월드 `x = 0, z = 0`; map col ∝ world x, map row ∝ world z. 세션 attach·`resetTracking` 시 정해진 월드 원점을 사용하며 `start()`는 x/z를 재중심하지 않는다. 스캔 시작 시 별도로 고정하는 값은 높이 분류용 `scanOriginY`다.
 - `simd_float4x4`는 **column-major**. translation = `columns.3`.
 
 ## 3. 동시성 규약

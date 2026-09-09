@@ -1,7 +1,7 @@
 ---
 title: 기술 설계 문서
 kind: design
-last_verified: 2026-09-06
+last_verified: 2026-09-09
 ---
 
 # 기술 설계 문서
@@ -68,7 +68,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 | ③ 자세 추출 | `ScanPipeline.process` | `camera.transform`에서 위치(x, z)와 heading | — |
 | ④ 깊이 선택 | 매니저가 게이트 통과 시에만 `smoothedSceneDepth ?? sceneDepth` 버퍼를 입력에 실음 | `smoothedSceneDepth ?? sceneDepth` (누적 중일 때만) | 일시정지 중엔 ④~⑥ 생략, 궤적·마커만 갱신 |
 | ⑤ 샘플링·역투영 | `DepthFrameProcessor.worldPoints` | stride 4로 픽셀 순회, confidence < medium 제외, depth 0.25~5m 밖 제외, 픽셀 → 카메라 좌표 → 월드 좌표. 같은 픽셀의 `capturedImage` 색(YCbCr → RGB)을 `ScanPoint.color`로 동봉 | 픽셀 15/16, 저신뢰·범위 밖 |
-| ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 20m 밖 |
+| ⑥ 높이 분류·누적 | `OccupancyGrid.accumulate` | 월드 y로 벽/바닥/천장 분류, (x, z) → 셀, `UInt16` hit 증가, 셀 색은 첫 hit 그대로·이후 EMA(3:1), used-bounds 갱신 | 천장, 월드 원점 기준 각 축 약 ±10m 밖 |
 | ⑦ 궤적 | `ScanPipeline` | 0.25m 이상 이동 시 위치 추가. 스캔을 한 번 시작한 뒤에는 일시정지 중에도 기록 | 미세 이동, 스캔 시작 전 이동, 트래킹 limited 중 이동 |
 | ⑧ 렌더 | `MinimapRenderer.render` | used-bounds + 카메라를 포함하는 정사각 crop, 셀 → RGBA(벽 = 셀 색, 바닥 = 셀 색 ÷ 2, 미관측 = alpha 0), `CGImage` 생성 | 관측 영역 밖 셀 |
 | ⑨ 전달 | `AsyncStream<ScanOutput>` → `ScanViewModel.apply` | 불변 `MinimapSnapshot`을 단일 스트림으로 발행, ViewModel의 MainActor `for await`가 상태 갱신. mesh(1.5초 주기)·이벤트·내보내기 결과도 같은 스트림 | — |
@@ -106,7 +106,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 ### 3.3 미니맵 회전 기준: 월드 고정 north-up (R2-5)
 
-**결정.** 맵은 월드 xz 평면에 고정하고, 사용자 마커(삼각형 + 시야 부채꼴)만 heading에 따라 회전한다. 원점 = 스캔 시작 시 기기 위치. "북"은 ARKit 월드 −z, 즉 세션 시작 시 기기가 바라본 방향이다 (`ARWorldTrackingConfiguration` 기본 `worldAlignment = .gravity`).
+**결정.** 맵은 월드 xz 평면에 고정하고, 사용자 마커(삼각형 + 시야 부채꼴)만 heading에 따라 회전한다. 격자 중앙은 ARKit 월드 `x = 0, z = 0`이다. 이 월드 원점은 세션 attach·`resetTracking` 시 정해지며 `start()`는 시작 위치의 x/z를 저장하거나 재중심하지 않는다. 스캔 시작 시 별도로 고정하는 값은 높이 분류용 `scanOriginY`다. "북"은 ARKit 월드 −z, 즉 월드 원점이 정해질 때 기기가 바라본 방향이다 (`ARWorldTrackingConfiguration` 기본 `worldAlignment = .gravity`).
 
 **이유.** 사용자가 회전해도 지도가 흔들리지 않아 벽 윤곽을 누적 관찰하기 쉽다 — 이 프로젝트의 질문 "어디를 찍었고 어디가 비어 있는가"에는 고정 지도가 맞다. 렌더러가 회전 변환 없이 격자 배열을 그대로 비트맵으로 옮긴다.
 
@@ -146,7 +146,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 ## 5. 누적 자료구조: 고정 400×400 occupancy grid, 셀 5cm
 
-**결정.** `OccupancyGrid.cellSize = 0.05`, `dimension = 400` (20m × 20m). 셀마다 `wallHits`·`floorHits` `UInt16` 카운트(640KB)와 카메라 색 `SIMD3<UInt8>`(480KB). 메모리 상한 약 1.1MB.
+**결정.** `OccupancyGrid.cellSize = 0.05`, `dimension = 400` (20m × 20m). 셀마다 `wallHits`·`floorHits` `UInt16` 카운트(합계 640KB)와 카메라 색 `SIMD3<UInt8>`를 저장한다. `SIMD3<UInt8>`의 배열 stride는 4바이트이므로 색 배열은 640KB, 세 배열의 원시 저장량 합계는 약 1.28MB다. Swift `Array` 객체 오버헤드는 별도다.
 
 **이유.** 점을 무한 누적하면 메모리가 스캔 시간에 비례해 커져 3분 연속 스캔(R3-2)을 보장할 수 없다. 카운트 격자는 상한이 고정되고 노이즈 컷(`wallHitThreshold = 3`, `floorHitThreshold = 2`)이 자연스럽다. 5cm는 실내 벽 윤곽 구분에 충분하고 depth 노이즈보다 크다. 400셀은 사무실 한 층 복도 정도(20m)를 덮는다.
 
@@ -259,7 +259,7 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 | --- | --- | --- | --- |
 | 평균 / 최저 FPS | ≥30 (기기 기본 유지) | 60.0 / 59.9 — **최악 부하(baseline 전수 처리)에서 측정**. tuned는 부하 1/9이라 동일 이상 | iPhone 15 Pro · 26.6 · 2026-09-04 |
 | 콜백 처리 시간 p50 / p95 / max | p95 <25ms, max <100ms | Debug 누적 11.9 / 17.5 / 22.2ms — 예산 충족. **Release 계측 1.9 / 2.8 / 7.1ms (09-06 3차)** | iPhone 15 Pro · 26.6 · 2026-09-04 / 09-06 |
-| 피크 메모리 | 격자 1.1MB + 앱 기본 | footprint 441 → 770MB 선형 증가 후 723MB — 증가분은 격자가 아니라 ARKit mesh 앵커·RealityKit (아래) | 〃 |
+| 피크 메모리 | 격자 원시 배열 약 1.28MB + 앱 기본 | footprint 441 → 770MB 선형 증가 후 723MB — 증가분은 격자가 아니라 ARKit mesh 앵커·RealityKit (아래) | 〃 |
 | 프레임당 처리 포인트 수 | ≤3,072 | 970~3,072 — 상한 정확히 준수 | 〃 |
 | 연속 스캔 시간 | ≥3분, 강제 종료 없음 | 3분+ 생존, 메모리 경고 없음. **3차 Release 205초 · Debug 210초 세션 (09-06)** | 〃 / 09-06 |
 
@@ -335,7 +335,7 @@ Release의 DisplayLink 간격이 16.7ms를 넘은 구간은 셋뿐이다: 시작
 - **드리프트.** 오래 스캔하면 VIO 추정이 누적 오차를 갖고 같은 벽이 두 겹으로 그려질 수 있다. 현재 보정하지 않는다. hit threshold(벽 3, 바닥 2)가 얇은 노이즈는 걸러 주지만 드리프트로 어긋난 두 번째 벽은 그대로 남는다.
 - **중단 후 재로컬라이즈.** `sessionShouldAttemptRelocalization`을 `true`로 두어 백그라운드 복귀 등 중단 뒤 ARKit이 기존 월드 원점으로 되돌아오게 한다. 이렇게 하지 않으면 트래킹이 새로 시작돼 원점이 바뀌고, 그때까지의 격자가 통째로 어긋난다. 재로컬라이즈 중(`limited(.relocalizing)`)에는 누적·궤적을 멈추고 배지를 띄우며, 끝나지 않으면 사용자가 초기화로 탈출한다. **정합 보정 시도**: 복귀(`normal` 전이) 후에도 1초간 누적·궤적을 계속 보류한다 (`relocalizationSettleTime`) — 복귀 직후는 ARKit이 월드·앵커를 미세 조정하며 수렴하는 구간이라, 그 포즈로 찍은 점이 격자에 굳으면 기존 관측과 어긋난다(실측 #21 복귀 시퀀스 약 4초의 마지막 정렬 단계). 수렴이 끝난 뒤 격자를 옮기는 보정은 하지 않는다 — 실측상 잔여 오차가 셀 해상도 이하다.
 - **시작 높이 가정.** 6절 밴드는 시작 시 기기 높이에 의존한다.
-- **20m 상한.** 5절. 밖의 점은 버린다.
+- **20m × 20m 상한.** 5절. ARKit 월드 원점을 중심으로 각 축 약 ±10m인 격자 밖의 점은 버린다.
 - **트래킹 불량 시 누적.** `limited`인 동안 누적·궤적 기록을 중단한다(normal 게이트, `adff017`). 남는 한계: 극단적으로 흔들면 ARKit이 normal을 유지한 채 포즈가 오염돼 유령 셀이 생길 수 있다 — 실사용 조건 미발생으로 후속 없음, 초기화로 복구.
 
 ## 13. 스캔 결과 뷰어: 정점 색 mesh·복셀 색·측정 (선택 항목 설계)

@@ -1,16 +1,17 @@
 import simd
 
 /// 고정 크기 occupancy grid. 점을 무한 누적하는 대신 셀 단위 hit count로 접어
-/// 메모리 상한을 고정한다 (hit 400×400×2×2byte ≈ 640KB + 색 400×400×3byte ≈ 480KB).
+/// 메모리 상한을 고정한다 (hit 400×400×2×2byte ≈ 640KB +
+/// 색 SIMD3<UInt8> stride 4byte × 400×400 ≈ 640KB, 원시 배열 합계 약 1.28MB).
 ///
 /// 스레딩: scan.processing 직렬 큐에서만 접근 (CLAUDE.md 동시성 규약).
 nonisolated final class OccupancyGrid {
 
     /// 셀 한 변(m). 5cm — 벽 윤곽 구분에 충분하고 400셀로 20m 커버.
     static let cellSize: Float = 0.05
-    /// 한 변 셀 수. 원점(스캔 시작 위치)이 중앙.
+    /// 한 변 셀 수. ARKit 월드 x=0, z=0이 중앙 — start()는 x/z를 재중심하지 않는다.
     static let dimension = 400
-    // ponytail: 20m 초과 영역은 버림. 대공간 필요해지면 원점 재중심 or chunk 확장.
+    // ponytail: 월드 원점 중심 각 축 약 ±10m 밖은 버림. 대공간 필요해지면 원점 재중심 or chunk 확장.
 
     /// 높이 밴드 (스캔 시작 시 기기 높이 기준 상대 y ≈ 바닥 위 1.2~1.5m 가정).
     /// wallBand: 바닥 위 약 0.3~2.2m 구간 → 벽·가구. 그 아래 = 바닥, 위 = 천장(버림).
