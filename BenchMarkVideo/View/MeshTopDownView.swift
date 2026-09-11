@@ -10,8 +10,10 @@ struct MeshTopDownView: UIViewRepresentable {
     let cameraXZ: SIMD2<Float>
     var visibleRadius: Float = 3
 
+    /// SceneKit 노드 참조와 마지막 mesh 버전을 보관할 coordinator를 만든다.
     func makeCoordinator() -> Coordinator { Coordinator() }
 
+    /// 투명 SceneKit 장면에 직교 카메라와 교체 가능한 mesh 노드를 한 번 구성한다.
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
         let scene = SCNScene()
@@ -21,6 +23,7 @@ struct MeshTopDownView: UIViewRepresentable {
         view.preferredFramesPerSecond = 30
         view.antialiasingMode = .multisampling2X
 
+        // 원근 왜곡 없는 직교 카메라로 xz 평면을 일정한 미터 축척으로 표시한다.
         let camera = SCNCamera()
         camera.usesOrthographicProjection = true
         camera.orthographicScale = Double(visibleRadius)   // 반높이(m) — 정사각 뷰라 한 변 2r
@@ -31,6 +34,7 @@ struct MeshTopDownView: UIViewRepresentable {
         scene.rootNode.addChildNode(cameraNode)
         context.coordinator.cameraNode = cameraNode
 
+        // geometry만 교체할 고정 노드를 두어 SwiftUI 업데이트마다 scene을 만들지 않는다.
         let meshNode = SCNNode()
         scene.rootNode.addChildNode(meshNode)
         context.coordinator.meshNode = meshNode
@@ -40,6 +44,7 @@ struct MeshTopDownView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
+        // 최신 카메라 중심·반경과 mesh 버전을 기존 SceneKit 노드에 반영한다.
         apply(to: context.coordinator)
     }
 

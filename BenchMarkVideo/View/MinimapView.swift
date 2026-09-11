@@ -14,11 +14,13 @@ struct MinimapView: View {
 
     var body: some View {
         GeometryReader { geo in
+            // 정사각 레이아웃의 너비를 배경 이미지와 오버레이의 공통 한 변으로 사용한다.
             let side = geo.size.width
             ZStack {
                 Color.black.opacity(0.55)
 
                 if let snapshot {
+                    // 카메라 중심 근접 창 또는 전체 crop에 맞는 공통 scale·offset을 계산한다.
                     let (scale, offset) = mapTransform(snapshot, side: side)
                     if let meshBackground, let visibleRadius, !meshBackground.positions.isEmpty {
                         MeshTopDownView(mesh: meshBackground,
@@ -33,6 +35,7 @@ struct MinimapView: View {
                             .offset(x: offset.x, y: offset.y)
                     }
                     Canvas { context, size in
+                        // 배경과 같은 좌표 변환으로 경로와 사용자 방향 마커를 겹친다.
                         drawTrajectory(snapshot, context: &context, size: size, scale: scale, offset: offset)
                         drawMarker(snapshot, context: &context, size: size, scale: scale, offset: offset)
                     }
@@ -52,7 +55,9 @@ struct MinimapView: View {
     /// 이미지를 (scale, offset)으로 그리면 카메라가 뷰 중앙에 오고 한 변이 2r(m)이 된다.
     /// visibleRadius가 nil이면 항등 (전체화면 fallback — 팬·줌은 ExpandedMapView의 세계 창이 담당).
     private func mapTransform(_ snapshot: MinimapSnapshot, side: CGFloat) -> (CGFloat, CGPoint) {
+        // 전체 지도를 표시할 때는 snapshot crop 이미지를 변형하지 않는다.
         guard let visibleRadius else { return (1, .zero) }
+        // crop 실제 길이를 목표 지름 2r로 확대하고 카메라 정규화 위치가 화면 중앙에 오게 이동한다.
         let scale = CGFloat(snapshot.cropSideMeters / (2 * visibleRadius))
         let n = snapshot.normalizedPoint(snapshot.cameraPosition)
         return (scale, CGPoint(x: side * (0.5 - n.x * scale), y: side * (0.5 - n.y * scale)))
@@ -60,12 +65,14 @@ struct MinimapView: View {
 
     private func point(_ world: SIMD2<Float>, _ snapshot: MinimapSnapshot, _ size: CGSize,
                        scale: CGFloat, offset: CGPoint) -> CGPoint {
+        // 월드 xz를 snapshot crop 비율로 바꾼 뒤 배경과 동일한 확대·이동을 적용한다.
         let n = snapshot.normalizedPoint(world)
         return CGPoint(x: n.x * size.width * scale + offset.x, y: n.y * size.height * scale + offset.y)
     }
 
     private func drawTrajectory(_ snapshot: MinimapSnapshot, context: inout GraphicsContext, size: CGSize,
                                 scale: CGFloat, offset: CGPoint) {
+        // 선분을 만들 수 없는 경로 0·1개 상태에서는 그리기를 생략한다.
         guard snapshot.trajectory.count > 1 else { return }
         var path = Path()
         path.move(to: point(snapshot.trajectory[0], snapshot, size, scale: scale, offset: offset))
@@ -79,6 +86,7 @@ struct MinimapView: View {
 
     private func drawMarker(_ snapshot: MinimapSnapshot, context: inout GraphicsContext, size: CGSize,
                             scale: CGFloat, offset: CGPoint) {
+        // 카메라 월드 위치를 현재 미니맵 창의 화면 중심 좌표로 변환한다.
         let center = point(snapshot.cameraPosition, snapshot, size, scale: scale, offset: offset)
 
         // 시야 부채꼴 (바라보는 방향 표시 보조)

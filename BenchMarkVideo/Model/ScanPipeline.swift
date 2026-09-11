@@ -97,18 +97,21 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
     #endif
 
     init(queue: DispatchQueue, emit: @escaping @Sendable (ScanOutput) -> Void) {
+        // 세션 매니저가 소유한 직렬 큐와 단일 출력 함수를 주입해 계층 경계를 유지한다.
         self.queue = queue
         self.emit = emit
     }
 
     /// 스캔 시작·재개 — 다음 프레임에서 첫 mesh 빌드 시각을 잡는다 (큐에서 호출).
     func markStarted() {
+        // 첫 시작에서만 지연 예약 플래그를 켜고 재개 시 기존 mesh 주기는 유지한다.
         if nextMeshTime == nil { pendingFirstMesh = true }
     }
 
     /// 프레임 하나 처리 (큐에서 동기 호출). 스냅샷은 매번 발행 — 일시정지 중에도 위치 마커는 움직인다.
     @discardableResult
     func process(_ input: FrameInput, gate: FrameGate) -> FrameResult {
+        // 이번 프레임의 계측 결과와 카메라 월드 xz 위치를 먼저 만든다.
         var result = FrameResult()
         let transform = input.cameraTransform
         let position = SIMD2(transform.columns.3.x, transform.columns.3.z)
@@ -121,6 +124,7 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
         }
 
         if gate.accumulate {
+            // 게이트가 허용한 프레임만 비싼 깊이 역투영과 누적 단계를 실행한다.
             if let depthMap = input.depthMap {
                 let points = DepthFrameProcessor.worldPoints(
                     depthMap: depthMap,
@@ -129,12 +133,14 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
                     intrinsics: input.intrinsics,
                     imageResolution: input.imageResolution,
                     cameraTransform: transform)
+                // 누적 전후 차이로 실제 격자에 받아들인 점 수를 진단 값에 기록한다.
                 let before = grid.totalPoints
                 grid.accumulate(points: points, originY: scanOriginY ?? 0)
                 voxelColors.accumulate(points: points)   // 3D 뷰어 정점 색
                 result.sampledPoints = points.count
                 result.acceptedPoints = grid.totalPoints - before
             } else {
+                // 누적 조건은 맞지만 sceneDepth가 없는 프레임임을 호출자에게 알린다.
                 result.missingDepth = true
             }
         }
@@ -156,32 +162,41 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
         let snapshot = MinimapRenderer.render(grid: grid, cameraPosition: position,
                                               cameraHeading: lastHeading, trajectory: trajectory,
                                               previous: lastSnapshot)
+        // 다음 프레임이 격자 미변경이면 CGImage를 재사용할 수 있도록 보관한다.
         lastSnapshot = snapshot
         emit(.snapshot(snapshot))
 
+        // 스냅샷 발행 뒤 별도의 시간·입력 변경 조건으로 무거운 mesh 빌드를 예약한다.
         scheduleMeshIfDue(at: input.timestamp, anchors: input.meshAnchors, started: gate.started)
         return result
     }
 
     /// mesh 빌드는 콜백 밖(같은 큐의 다음 블록)에서 — 콜백 예산을 지키면서 격자 접근은 직렬 유지.
     private func scheduleMeshIfDue(at timestamp: TimeInterval, anchors: [ARMeshAnchor], started: Bool) {
+        // 스캔 전 예열 프레임은 3D 결과를 만들지 않는다.
         guard started else { return }
         if pendingFirstMesh {
+            // 첫 mesh만 짧게 미뤄 시작 순간의 와이어프레임 렌더와 CPU 작업이 겹치지 않게 한다.
             pendingFirstMesh = false
             nextMeshTime = timestamp + Self.meshFirstDelay
         }
+        // 예약 시각 전 프레임은 건너뛰고 통과한 즉시 다음 허용 시각을 잡는다.
         guard let due = nextMeshTime, timestamp >= due else { return }
         nextMeshTime = timestamp + Self.meshInterval
+        // 앵커 수와 누적 점 수를 결합해 입력 변화가 없는 주기의 재빌드를 생략한다.
         let signature = anchors.count &* 1_000_003 &+ grid.totalPoints
         guard signature != lastMeshInputSignature else { return }
         lastMeshInputSignature = signature
+        // 비동기 블록이 기다리는 동안 reset됐는지 확인할 현재 세대를 캡처한다.
         let generation = self.generation
         queue.async { [self] in
             guard generation == self.generation else { return }   // 사이에 초기화됐으면 옛 앵커 폐기
+            // 같은 세대에서 완성되는 mesh마다 증가하는 버전을 부여한다.
             meshBuildCount += 1
             #if SCAN_DIAGNOSTICS
             let buildStart = ProcessInfo.processInfo.systemUptime
             #endif
+            // ARKit 앵커 기하와 누적 복셀 색을 하나의 전송 가능한 mesh로 결합한다.
             var mesh = MeshBuilder.coloredMesh(anchors: anchors, colors: voxelColors)
             mesh.version = meshBuildCount
             #if SCAN_DIAGNOSTICS
@@ -195,6 +210,7 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
 
     /// 격자·복셀·궤적 전부 초기화하고 빈 스냅샷을 발행 — 큐에 남아 있던 프레임의 옛 격자 잔상을 즉시 덮는다.
     func reset() {
+        // 먼저 세대를 올려 이미 예약된 이전 공간의 mesh 작업을 무효화한다.
         generation += 1
         scanOriginY = nil
         grid.reset()
@@ -206,19 +222,23 @@ nonisolated final class ScanPipeline: @unchecked Sendable {
         lastMeshInputSignature = -1
         nextMeshTime = nil
         pendingFirstMesh = false
+        // UI가 이전 지도를 즉시 덮도록 초기화된 격자의 빈 스냅샷을 발행한다.
         emit(.snapshot(MinimapRenderer.render(grid: grid, cameraPosition: .zero,
                                               cameraHeading: 0, trajectory: [])))
     }
 
     /// 현재 격자를 .ply 임시 파일로 써서 `.plyFile` 발행 (선택 요구사항: 내보내기).
     func exportPly() {
+        // 공유 전용 임시 경로를 사용해 앱 문서함에 오래된 내보내기 파일을 남기지 않는다.
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("scan.ply")
+        // 원자적 쓰기의 성공 여부에 따라 유효 URL 또는 nil을 발행한다.
         let written = (try? GridExporter.ply(grid: grid).write(to: url, atomically: true, encoding: .utf8)) != nil
         emit(.plyFile(written ? url : nil))
     }
 
     /// 현재 격자를 점군 값으로 발행 — 3D 뷰어의 mesh 없을 때 fallback.
     func exportPointCloud() {
+        // 파일 I/O 없이 현재 격자를 값 타입 점군으로 변환해 3D fallback에 전달한다.
         emit(.pointCloud(GridExporter.pointCloud(grid: grid)))
     }
 }

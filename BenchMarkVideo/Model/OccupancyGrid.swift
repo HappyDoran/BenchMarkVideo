@@ -38,46 +38,57 @@ nonisolated final class OccupancyGrid {
     /// 월드 (x, z) → 연속 셀 좌표 (반올림·경계 처리 전).
     /// 월드→격자 매핑의 단일 정의 — cellIndex와 MinimapSnapshot.normalizedPoint가 여기서 파생된다.
     static func continuousCell(x: Float, z: Float) -> SIMD2<Float> {
+        // 미터를 셀 단위로 바꾸고 월드 원점이 격자 중앙에 오도록 절반 크기를 더한다.
         SIMD2(x / cellSize + Float(dimension / 2), z / cellSize + Float(dimension / 2))
     }
 
     /// 연속 셀 좌표 → 월드 (x, z). continuousCell의 역변환 — 미니맵 탭 위치를 월드로 되돌릴 때 사용.
     static func worldXZ(continuousCell c: SIMD2<Float>) -> SIMD2<Float> {
+        // 중앙 오프셋을 제거한 뒤 셀 크기를 곱해 다시 미터 단위로 돌린다.
         (c - Float(dimension / 2)) * cellSize
     }
 
     /// 월드 (x, z) → 셀 (col, row). row는 +z 방향으로 증가 (이미지 아래 방향 = north-up).
     static func cellIndex(x: Float, z: Float) -> (col: Int, row: Int)? {
+        // 최근접 셀 중심으로 반올림해 정수 col·row를 만든다.
         let c = continuousCell(x: x, z: z)
         let col = Int(c.x.rounded()), row = Int(c.y.rounded())
+        // 고정 20m 격자 밖 점은 배열에 접근하지 않고 버린다.
         guard col >= 0, col < dimension, row >= 0, row < dimension else { return nil }
         return (col, row)
     }
 
     /// originY: 스캔 시작 시 카메라 월드 y — 높이 밴드를 실행 시점이 아닌 스캔 시작 높이 기준으로 만든다.
     func accumulate(points: [ScanPoint], originY: Float = 0) {
+        // 각 월드 점을 하나의 xz 셀과 상대 높이 분류로 접어 고정 크기 배열에 누적한다.
         for sp in points {
             let p = sp.position
             guard let (col, row) = Self.cellIndex(x: p.x, z: p.z) else { continue }
             let idx = row * Self.dimension + col
 
+            // 스캔 시작 카메라 높이를 빼 벽·바닥 밴드가 실행 자세에 종속되지 않게 한다.
             let relY = p.y - originY
             let isWall = Self.wallBand.contains(relY)
             guard isWall || relY < Self.floorBelow else { continue }  // 천장
+            // 첫 관측 여부는 색 EMA를 적용할지 원색을 저장할지 결정한다.
             let isNewCell = wallHits[idx] == 0 && floorHits[idx] == 0
             // 관측 면적은 렌더 임계값과 같은 기준으로 집계 — 1회 히트 노이즈 셀이 라벨을 부풀리지 않게
             let wasVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
             if isWall {
+                // UInt16 최대값에서 포화시켜 장시간 스캔의 overflow를 막는다.
                 if wallHits[idx] < .max { wallHits[idx] += 1 }
             } else {
                 if floorHits[idx] < .max { floorHits[idx] += 1 }
             }
+            // 이번 hit로 처음 표시 임계값을 넘은 셀만 관측 셀 수에 한 번 더한다.
             let nowVisible = wallHits[idx] >= Self.wallHitThreshold || floorHits[idx] >= Self.floorHitThreshold
             if !wasVisible && nowVisible { occupiedCellCount += 1 }
+            // 반복 관측 색은 이전 75%, 새 색 25%로 섞어 깜빡임과 센서 노이즈를 줄인다.
             colors[idx] = isNewCell ? sp.color
                 : SIMD3<UInt8>(truncatingIfNeeded: (SIMD3<UInt16>(truncatingIfNeeded: colors[idx]) &* 3 &+ SIMD3<UInt16>(truncatingIfNeeded: sp.color)) / 4)
             totalPoints += 1
 
+            // 실제 데이터가 존재하는 최소 사각형을 넓혀 렌더러가 작은 crop만 순회하게 한다.
             if var b = usedBounds {
                 b.minCol = min(b.minCol, col); b.maxCol = max(b.maxCol, col)
                 b.minRow = min(b.minRow, row); b.maxRow = max(b.maxRow, row)
@@ -89,6 +100,7 @@ nonisolated final class OccupancyGrid {
     }
 
     func reset() {
+        // 이전 공간의 hit·색·통계를 모두 초기값으로 되돌린다.
         wallHits = [UInt16](repeating: 0, count: Self.dimension * Self.dimension)
         floorHits = [UInt16](repeating: 0, count: Self.dimension * Self.dimension)
         colors = [SIMD3<UInt8>](repeating: .zero, count: Self.dimension * Self.dimension)
