@@ -53,11 +53,10 @@ iPhone의 LiDAR로 방을 걸으며 비추면 카메라 화면 위에 스캔한 
 - iPhone 15 Pro 실기기에서 스캔 중에도 화면이 **60fps**를 유지합니다.
 - **3분 이상 연속 스캔**(최장 4.5분)에서 강제 종료나 메모리 경고가 없었습니다.
 
-## :gear: 개발 정보
+## :gear: 개발 환경과 실행
 
 | 항목 | 내용 |
 | --- | --- |
-| 개발 기간 | 2026.09.04 ~ 2026.09.12 |
 | 개발 환경 | Xcode 26.1, Swift 5 + Approachable Concurrency, iOS 17.0 이상 |
 | 테스트 기기 | iPhone 15 Pro (iOS 26.6) — LiDAR가 있는 기기에서만 동작 |
 
@@ -67,20 +66,6 @@ iPhone의 LiDAR로 방을 걸으며 비추면 카메라 화면 위에 스캔한 
 2. scheme `BenchMarkVideo-Production`(실사용·성능 확인용 Release)을 고릅니다. 진단 패널이 있는 `BenchMarkVideo-Development`의 차이는 개발 문서에 있습니다.
 3. Signing & Capabilities에서 본인 팀을 지정합니다(bundle ID `com.doran.benchmarkvideo`, 필요하면 변경).
 4. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열, iPad Pro 2020 이상)를 연결하고 Run합니다. 시뮬레이터는 깊이 정보가 없어 "지원되지 않는 기기" 화면이 뜹니다.
-
-## :technologist: 개발자
-
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/HappyDoran">
-        <img src="https://avatars.githubusercontent.com/u/52277540?v=4" width="100px" alt="HappyDoran"><br>
-        <sub><b>HappyDoran</b></sub>
-      </a><br>
-      <sub>iOS 개발 (1인)</sub>
-    </td>
-  </tr>
-</table>
 
 ## :books: 더 읽을거리
 
