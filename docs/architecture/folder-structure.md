@@ -1,7 +1,7 @@
 ---
 title: 현재 폴더 구성 스냅샷
 kind: snapshot
-last_verified: 2026-09-06
+last_verified: 2026-11-22
 ---
 
 # 현재 폴더 구성 스냅샷
@@ -13,11 +13,12 @@ last_verified: 2026-09-06
 ├── AGENTS.md                         # 도구 중립 진입점, 문서 맵, 작업 흐름
 ├── CLAUDE.md -> AGENTS.md            # Claude용 진입 symlink
 ├── TECH_RULES.md                     # 스택, 좌표계·동시성 규약, 금지
-├── README.md                         # 빌드·검증 명령, 실기기 수동 매트릭스
+├── README.md                         # 앱 소개 (기능·스크린샷·기술 스택·간단한 실행 방법)
 ├── DESIGN.md                         # 설계 판단 근거 (MVVM, 격자, 필터, 스로틀 …)
 ├── LLM_REPORT.md                     # LLM 활용 리포트
 ├── docs/
 │   ├── AI_AGENT_HARNESS.md           # Agent 작업 지원 체계 설명
+│   ├── DEVELOPMENT.md                # 개발·검증 가이드 (체크리스트, 성능, 제약, 검증 명령, 실기기 매트릭스)
 │   ├── architecture/folder-structure.md
 │   ├── images/                           # README 스크린샷 3장 (스캔 중·전체화면 2D 측정·3D 뷰어, 09-06 데모 프레임)
 │   ├── spec/requirements.md              # 요구사항 번호·문서 구성 요약

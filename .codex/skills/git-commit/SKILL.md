@@ -10,7 +10,7 @@ description: 이 저장소의 커밋 규칙. 커밋을 만들거나 커밋 메�
 ## 절차
 
 1. `git status`와 diff를 보고 요청한 작업에 속한 파일만 stage한다. 관련 없는 변경은 남긴다.
-2. `README.md` 검증 절의 명령(컴파일, `scripts/check-structure.sh`)을 실행한다. 실행하지 못한 검증은 본문에 "미검증"으로 적는다.
+2. `docs/DEVELOPMENT.md` 검증 절의 명령(컴파일, `scripts/check-structure.sh`)을 실행한다. 실행하지 못한 검증은 본문에 "미검증"으로 적는다.
 3. 제목과 본문을 분리해 커밋한다: `git commit -m "<제목>" -m "<본문>"`.
 4. `git show -s --format='%s%n%b' HEAD`로 본문이 비어 있지 않은지 확인한다.
 5. push는 사용자가 요청했을 때만 한다.

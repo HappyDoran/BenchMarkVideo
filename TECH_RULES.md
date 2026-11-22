@@ -1,7 +1,7 @@
 ---
 title: BenchMarkVideo 기술 스택과 구현 규칙
 kind: rule
-last_verified: 2026-09-09
+last_verified: 2026-11-22
 ---
 
 # 기술 스택 및 구현 규칙
@@ -80,7 +80,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 ## 6. 검증
 
-`README.md` 검증 절의 명령(단위 테스트, 컴파일, 구조 검사)을 전부 통과해야 완료다. 런타임 동작 변경은 실기기 수동 확인을 병행하고 결과를 완료 보고에 남긴다. 검증 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
+`docs/DEVELOPMENT.md` 검증 절의 명령(단위 테스트, 컴파일, 구조 검사)을 전부 통과해야 완료다. 런타임 동작 변경은 실기기 수동 확인을 병행하고 결과를 완료 보고에 남긴다. 검증 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
 
 ## 7. 보고 규칙
 

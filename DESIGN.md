@@ -1,7 +1,7 @@
 ---
 title: 기술 설계 문서
 kind: design
-last_verified: 2026-09-09
+last_verified: 2026-11-22
 ---
 
 # 기술 설계 문서
@@ -51,7 +51,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 
 **되돌리기 조건.** 화면이 셋 이상 생기고 화면 간 공유 상태가 필요해지면 feature 단위 상위 폴더(`Features/Scan/{Model,ViewModel,View}`)를 검토한다.
 
-**검증 상태.** 컴파일·구조 검사·단위 테스트 41건 통과. 실기기 검증 완료 (2026-09-04~06, `README.md` 매트릭스). 3차 녹화에서는 명령줄 조건으로 만든 Release 계측 빌드와 Debug 빌드를 같은 동선으로 3분 이상 촬영해, 최적화 코드의 내부 수치와 3분 연속 세션을 같은 패널에서 읽었다 (10절).
+**검증 상태.** 컴파일·구조 검사·단위 테스트 41건 통과. 실기기 검증 완료 (2026-09-04~06, `docs/DEVELOPMENT.md` 매트릭스). 3차 녹화에서는 명령줄 조건으로 만든 Release 계측 빌드와 Debug 빌드를 같은 동선으로 3분 이상 촬영해, 최적화 코드의 내부 수치와 3분 연속 세션을 같은 패널에서 읽었다 (10절).
 
 ### 1.2 UI 프레임워크: SwiftUI
 
@@ -102,7 +102,7 @@ ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.proc
 ### 3.2 검증
 
 - 단위 테스트(`DepthFrameProcessorTests`): 주점 픽셀 → (0, 0, −d), 이미지 오른쪽 → +x, 이미지 아래 → −y, translation이 column 3에서 읽히는지, +x를 보는 자세의 heading = π/2, 실제 `CVPixelBuffer`에서 stride·confidence·범위 필터.
-- 실기기: 알려진 길이 물체 실측으로 검증 완료 — 1.4m 책상 거리 측정 1.38/1.40m (±1.4%), 미니맵 셀 뭉치 폭 픽셀 측정 정합 (`README.md` 매트릭스 "스케일").
+- 실기기: 알려진 길이 물체 실측으로 검증 완료 — 1.4m 책상 거리 측정 1.38/1.40m (±1.4%), 미니맵 셀 뭉치 폭 픽셀 측정 정합 (`docs/DEVELOPMENT.md` 매트릭스 "스케일").
 
 ### 3.3 미니맵 회전 기준: 월드 고정 north-up (R2-5)
 
@@ -251,7 +251,7 @@ ARFrame 시각·초기화 세대·CPU 빌드 시간을 넣어 다음을 영상�
 2. Instruments Allocations로 3분 이상 스캔 중 메모리 곡선과 피크를 본다.
 3. UI fps는 `FPSMonitor`(CADisplayLink, 3초 창)가 평균·최대 간격을 진단 패널과 `perf` 로그에 남긴다. Xcode FPS 게이지는 디버거 부착이 필요해 쓰지 않는다.
 4. 프레임당 처리 포인트 수, 콜백 3초 창 p50·p95, 메모리 footprint는 진단 패널 부하 탭과 `perf` 로그에 같은 원천으로 남긴다. 녹화 판독 시 패널이 1차 자료, 로그는 `log collect --device` 사후 수집용이다.
-5. Release 최적화 코드의 내부 수치는 명령줄 `SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) SCAN_DIAGNOSTICS'`로 Production scheme을 빌드·설치해 같은 패널로 읽는다 (`README.md` 검증 절). pbxproj의 Release 구성은 그대로 두므로 제출 빌드에는 계측이 없다.
+5. Release 최적화 코드의 내부 수치는 명령줄 `SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) SCAN_DIAGNOSTICS'`로 Production scheme을 빌드·설치해 같은 패널로 읽는다 (`docs/DEVELOPMENT.md` 검증 절). pbxproj의 Release 구성은 그대로 두므로 제출 빌드에는 계측이 없다.
 
 **결과.** 2026-09-04, iPhone 15 Pro · iOS 26.6, **Development(Debug) 빌드** 3분 연속 스캔, 자가 계측 로그(처리 프레임 1,560개) 판독. Instruments는 CLI 설치 빌드 attach 거부로 미사용 — 앱이 3초마다 지표를 unified log로 남기는 방식으로 대체.
 
@@ -363,5 +363,5 @@ Release의 DisplayLink 간격이 16.7ms를 넘은 구간은 셋뿐이다: 시작
 4. ~~드리프트 대응~~ — 시도 구현 (12절 재로컬라이즈 안정화 창). 격자 이동 보정은 실측상 방 규모 드리프트가 셀 이하라 불요 판정.
 5. ~~미니맵 팬·줌~~ — 완료: 전체화면 세계 창(중심+반경) 방식.
 6. ~~스캔 결과 내보내기~~ — 완료: 관측 셀 .ply + ShareLink (`GridExporter`).
-7. ~~단방향 출력 통합·파이프라인 분리·전체화면 상태 승격~~ — 완료 (2026-09-06): `AsyncStream<ScanOutput>` 하나, `ScanPipeline` 분리, `ExpandedMapView` + ViewModel 상태. 같은 날 Release 실기기 한 테이크로 재검증 통과 (`README.md` 매트릭스).
+7. ~~단방향 출력 통합·파이프라인 분리·전체화면 상태 승격~~ — 완료 (2026-09-06): `AsyncStream<ScanOutput>` 하나, `ScanPipeline` 분리, `ExpandedMapView` + ViewModel 상태. 같은 날 Release 실기기 한 테이크로 재검증 통과 (`docs/DEVELOPMENT.md` 매트릭스).
 8. **키프레임 텍스처 베이킹** — 현재 3D는 정점 색 근사. 참고 영상 수준의 면 단위 사진 텍스처는 스캔 중 키프레임(이미지+포즈) 저장 → 삼각형별 최적 프레임 선택 → UV 아틀라스 베이킹이 필요하다. 공개 참고 코드: TokyoYoshida/ExampleOfiOSLiDAR (MIT, 단일 프레임 투영).
