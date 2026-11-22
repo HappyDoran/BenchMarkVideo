@@ -1,7 +1,7 @@
 ---
 title: BenchMarkVideo 저장소 작업 규범
 kind: rule
-last_verified: 2026-09-05
+last_verified: 2026-11-22
 ---
 
 # BenchMarkVideo — 실시간 공간 스캔 & Top-Down Minimap
@@ -24,7 +24,8 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | 사실 | 소유 문서 | 갱신을 유발하는 변경 |
 | --- | --- | --- |
 | 고정 스택, 좌표계 규약, 동시성 규약, 구현 금지 | `TECH_RULES.md` | 프레임워크 변경, 좌표·큐 규칙 변경, 금지 패턴 추가 |
-| 프로젝트 개요, 요구사항 대응표, 데모, 빌드·실행·검증 명령, 실기기 수동 검증 절차 | `README.md` | 기능·요구사항 상태·검증 절차 변경 |
+| 앱 소개 (사용자 관점 기능, 스크린샷, 기술 스택, 개발 정보, 간단한 실행 방법) | `README.md` | 사용자에게 보이는 기능·화면 변경 |
+| 요구사항 구현 체크리스트, 아키텍처 개요, 성능 측정 결과, 알려진 버그·제약, 빌드·실행·검증 명령, 진단 패널, 실기기 수동 검증 매트릭스 | `docs/DEVELOPMENT.md` | 기능·요구사항 상태·검증 절차 변경 |
 | 요구사항 번호(R1~R4), 선택 항목, 문서 구성·필수 조건 | `docs/spec/requirements.md` | 요구사항 정의 변경 |
 | 요구사항 대비 갭 분석, 보완 백로그와 우선순위, 선택 항목 후보 | `docs/spec/gap-analysis.md` | 백로그 항목 완료, 실기기 검증으로 판정 변경, 재점검 |
 | 설계 판단 근거 (MVVM 채택, 시각화 방식, 격자·스로틀·필터 파라미터) | `DESIGN.md` | 구조 판단 또는 파이프라인 파라미터 변경 |
@@ -51,7 +52,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 | 모든 코드 변경 | `TECH_RULES.md`, `.codex/skills/test-policy/SKILL.md` |
 | 파일 추가·이동, 리팩토링 | `.codex/skills/mvvm-architecture/SKILL.md`, `docs/architecture/folder-structure.md` |
 | 파이프라인 파라미터(격자·스로틀·높이 밴드·샘플링) 튜닝 | `DESIGN.md`, `TECH_RULES.md` 좌표계 절 |
-| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `README.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
+| 실기기 검증 결과·요구사항 상태 반영 | `docs/spec/requirements.md`, `docs/spec/gap-analysis.md`, `docs/DEVELOPMENT.md` 체크리스트·수동 검증 절, `LLM_REPORT.md`, `DESIGN.md` |
 | 문서·Agent 체계 변경 | `docs/AI_AGENT_HARNESS.md`, 이 문서의 문서 추가 규칙 |
 
 ## 절대 금지 (이 문서가 소유)
@@ -64,7 +65,7 @@ LiDAR(sceneDepth) 기반 실시간 공간 스캔 + occupancy grid 미니맵 iOS 
 
 ## 명령어와 로컬 함정
 
-실행·검증 명령의 단일 기준은 `README.md`.
+실행·검증 명령의 단일 기준은 `docs/DEVELOPMENT.md`.
 
 - 실기기(iPhone 15 Pro) 필수 — 시뮬레이터·비-LiDAR 기기에서는 `ARFrame.sceneDepth`가 nil이라 파이프라인이 동작하지 않는다. 단위 테스트(Model 순수 함수)와 컴파일은 시뮬레이터에서 돈다.
 - Xcode 26 신규 프로젝트는 `MemberImportVisibility`가 켜져 있어 암묵 import에 의존하면 컴파일이 실패한다. 쓰는 모듈은 명시적으로 import한다.

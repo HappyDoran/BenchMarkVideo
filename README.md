@@ -1,237 +1,74 @@
-# BenchMarkVideo — 실시간 공간 스캔 & Top-Down Minimap
+# BenchMarkVideo
 
-iPhone의 LiDAR 깊이(`sceneDepth`)를 실시간으로 받아 카메라 화면 위에 스캔 영역을 표시하고, 동시에 위에서 내려다본 2D 미니맵(occupancy grid)을 그린다. 순수 Swift, SwiftUI + ARKit + RealityKit, 서드파티 의존성 없음.
+> 걸으며 비추기만 하면, 방의 지도가 위에서 본 모습으로 그려지는 LiDAR 공간 스캔 앱
 
-- **무엇**: 깊이 프레임을 직렬 큐 하나로 받아 100ms 스로틀·stride 4 샘플링 후 5cm 고정 격자에 누적하고, 격자의 불변 스냅샷과 정점 색 mesh를 `AsyncStream` 하나로 UI에 흘린다. 오버레이 미니맵(north-up)과 전체화면 2D/3D 뷰어(팬·줌·거리 측정·.ply 내보내기)까지.
-- **어떻게 확인했나**: iPhone 15 Pro 실기기 화면 녹화 28편을 프레임 단위로 판독한 46항목 매트릭스, Release 계측 빌드에서 콜백 p50 1.9ms·UI 60fps·3분 이상 연속 세션, 단위 테스트 41건.
-- **어디를 보나**: 설계 판단과 파이프라인은 `DESIGN.md`, LLM과 사람의 역할 구분·기각 사례는 `LLM_REPORT.md`, 실행·검증 절차는 이 문서.
+iPhone의 LiDAR로 방을 걸으며 비추면 카메라 화면 위에 스캔한 영역이 겹쳐 보이고, 화면 구석의 미니맵에는 위에서 내려다본 방의 지도가 실시간으로 채워집니다. 지도 위에는 지금 내 위치와 바라보는 방향, 지나온 길이 함께 표시됩니다.
+
+스캔을 마치면 지도를 전체화면으로 펼쳐 2D 평면도와 3D 모형으로 살펴보고, 두 점을 찍어 거리와 면적을 재고, 결과를 `.ply` 파일로 내보낼 수 있습니다. 줄자나 별도 장비 없이 방 구조를 빠르게 파악하고 공유하는 것이 목표입니다.
+
+## :fireworks: Screenshots
 
 <p align="center">
   <img src="docs/images/scan-overlay.jpg" width="30%" alt="스캔 중 — 카메라 위 와이어프레임, 좌하단 미니맵과 궤적, 상단 상태 캡슐">
   <img src="docs/images/fullscreen-2d-measure.jpg" width="30%" alt="전체화면 2D — mesh top-down, 궤적, 두 점 거리 측정 1.73m, 관측 면적 48.1㎡">
   <img src="docs/images/viewer-3d.jpg" width="30%" alt="3D 재구성 뷰어 — 정점 색 mesh 돌하우스">
 </p>
-<p align="center"><sub>왼쪽부터 스캔 중 오버레이 · 전체화면 2D 측정 · 3D 재구성 (같은 집 48.1㎡, 2026-09-06 데모 촬영 프레임)</sub></p>
+<p align="center"><sub>왼쪽부터 스캔 중 화면 · 전체화면 2D 거리 측정 · 3D 모형 (같은 집 48.1㎡)</sub></p>
 
-| 항목 | 값 |
+## :pushpin: 주요 기능
+
+- **스캔 시작·일시정지·재개·초기화**: 버튼 하나로 스캔을 시작하고, 상황에 맞게 버튼이 일시정지·재개·초기화로 바뀝니다. 일시정지해도 위치와 지나온 길은 계속 기록되어, 재개하면 떨어진 두 공간이 실제 거리만큼 이어져 그려집니다.
+- **실시간 스캔 표시**: 스캔 중에는 카메라 화면 위에 이미 훑은 곳이 와이어프레임으로 겹쳐 보여, 어디를 더 비춰야 하는지 바로 알 수 있습니다.
+- **실시간 미니맵**: 좌하단 미니맵에 위에서 본 방의 지도가 걸음에 맞춰 채워집니다. 벽은 카메라에 비친 색 그대로, 바닥은 조금 어둡게 칠해지고 지도는 항상 같은 방향(north-up)을 유지합니다.
+- **현재 위치·방향과 이동 궤적**: 삼각형 마커와 시야 부채꼴로 내 위치와 바라보는 방향을, 선으로 지나온 길을 보여 줍니다.
+- **전체화면 2D/3D 뷰어**: 미니맵을 탭하면 스캔이 잠시 멈추고 전체화면 지도가 열립니다. 2D 평면도는 핀치로 확대하고 드래그로 옮길 수 있고, 3D 모형은 돌려 보며 방 안을 들여다볼 수 있습니다.
+- **거리·면적 측정**: 지도에서 두 점을 탭하면 거리를 미터로 알려 주고, 지금까지 스캔한 면적(㎡)도 함께 표시합니다. 1.4m 책상을 1.38~1.40m로 측정했습니다.
+- **스캔 결과 내보내기**: 스캔한 공간을 `.ply` 점군 파일로 만들어 공유 시트나 AirDrop으로 보낼 수 있습니다.
+- **상태·트래킹 안내**: 대기·스캔 중·일시정지 상태와 누적 포인트 수를 보여 주고, 특징점이 부족하거나 위치를 다시 찾는 중이면 안내 배지를 띄웁니다. 카메라 권한이 없거나 LiDAR가 없는 기기에서는 이유와 해결 방법을 안내합니다.
+
+## :walking: 사용 흐름
+
+1. 앱을 열고 카메라 권한을 허용한 뒤 "스캔 시작"을 누릅니다.
+2. 방을 천천히 걸으며 벽과 바닥을 비춥니다. 미니맵이 걸음에 맞춰 채워집니다.
+3. 미니맵을 탭해 전체화면으로 펼치고, 2D 평면도와 3D 모형을 오가며 결과를 확인합니다.
+4. 두 점을 찍어 거리를 재거나 `.ply`로 내보냅니다. 닫으면 스캔이 이어집니다.
+
+## :sparkles: 기술 스택
+
+<p>
+  <img src="https://img.shields.io/badge/swift-F05138?style=for-the-badge&logo=swift&logoColor=white">
+  <img src="https://img.shields.io/badge/swiftui-0D96F6?style=for-the-badge&logo=swift&logoColor=white">
+  <img src="https://img.shields.io/badge/arkit-000000?style=for-the-badge&logo=apple&logoColor=white">
+  <img src="https://img.shields.io/badge/realitykit-000000?style=for-the-badge&logo=apple&logoColor=white">
+  <img src="https://img.shields.io/badge/scenekit-000000?style=for-the-badge&logo=apple&logoColor=white">
+  <img src="https://img.shields.io/badge/xcode-147EFB?style=for-the-badge&logo=xcode&logoColor=white">
+  <img src="https://img.shields.io/badge/ios-000000?style=for-the-badge&logo=ios&logoColor=white">
+</p>
+
+- 서드파티 라이브러리 없이 Apple 시스템 프레임워크(ARKit, RealityKit, SceneKit, SwiftUI, Observation, CoreGraphics, simd, XCTest)만 사용합니다. 깊이 역투영은 Apple 샘플 [Visualizing a Point Cloud Using Scene Depth](https://developer.apple.com/documentation/arkit/displaying-a-point-cloud-using-scene-depth)의 방식을 참고해 직접 다시 작성했습니다(Apple Sample Code License, 개념 참고 범위).
+- 구조는 MVVM이며, 깊이 처리는 전용 직렬 큐에서 돌고 화면은 `AsyncStream` 하나로 결과를 받습니다.
+
+## :bar_chart: 성능
+
+- iPhone 15 Pro 실기기에서 스캔 중에도 화면이 **60fps**를 유지합니다.
+- **3분 이상 연속 스캔**(최장 4.5분)에서 강제 종료나 메모리 경고가 없었습니다.
+
+## :gear: 개발 환경과 실행
+
+| 항목 | 내용 |
 | --- | --- |
-| 개발 환경 | Xcode 26.1, Swift 5 언어 모드 + Approachable Concurrency(기본 MainActor 격리, `SWIFT_VERSION = 5.0`), iOS 17.0 이상 (`@Observable`이 iOS 17부터) |
-| 테스트 기기 | iPhone 15 Pro (iPhone16,1, LiDAR), iOS 26.6 — 2026-09-04 실기기 검증 완료 (화면 녹화 22편 프레임 판독), 2026-09-06 3차 Release·Debug 계측 빌드 각 1편(약 3.5분) OCR 판독 |
-| 아키텍처 | MVVM (`App / Model / ViewModel / View`) — 근거 `DESIGN.md` 1.1절 |
-| 산출 문서 | 설계 `DESIGN.md` · LLM 활용 리포트 `LLM_REPORT.md` · 이 README |
-| 에이전트 문서 | 작업 규범 `AGENTS.md` · 체계 설명 `docs/AI_AGENT_HARNESS.md` |
+| 개발 환경 | Xcode 26.1, Swift 5 + Approachable Concurrency, iOS 17.0 이상 |
+| 테스트 기기 | iPhone 15 Pro (iOS 26.6) — LiDAR가 있는 기기에서만 동작 |
 
-## 데모 영상
+### 실행 방법
 
-제출용 데모 영상은 별도로 촬영해 이메일에 첨부하거나 외부 링크로 전달한다. 요구 흐름은 3분 이내에 스캔 시작 → 이동하며 실시간 미니맵 누적 → 스캔 종료 → 2D/3D 결과 확인이다. 아래 성능 판독용 Development·Production 영상은 검증 자료이며 데모 영상으로 사용하지 않는다.
+1. 저장소를 클론하고 `BenchMarkVideo.xcodeproj`를 엽니다.
+2. scheme `BenchMarkVideo-Production`(실사용·성능 확인용 Release)을 고릅니다. 진단 패널이 있는 `BenchMarkVideo-Development`의 차이는 개발 문서에 있습니다.
+3. Signing & Capabilities에서 본인 팀을 지정합니다(bundle ID `com.doran.benchmarkvideo`, 필요하면 변경).
+4. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열, iPad Pro 2020 이상)를 연결하고 Run합니다. 시뮬레이터는 깊이 정보가 없어 "지원되지 않는 기기" 화면이 뜹니다.
 
-## 실행 방법
+## :books: 더 읽을거리
 
-```bash
-git clone <repo>
-cd BenchMarkVideo
-open BenchMarkVideo.xcodeproj
-```
-
-1. Xcode에서 scheme을 선택한다 (공유 scheme 2개, 저장소에 포함).
-   - `BenchMarkVideo-Production` — 실사용·성능 확인용. Release, 디버거 미부착,
-     `SCAN_DIAGNOSTICS` 미정의, GPU Frame Capture Disabled, Metal API Validation off.
-     카메라 표시까지의 시간이 실사용 기준이다.
-   - `BenchMarkVideo-Development` — 개발·녹화 진단용. Debug + LLDB + `SCAN_DIAGNOSTICS`.
-     진단 패널·자가 계측을 포함하며 디버거와 Metal 검증 레이어 때문에 첫 실행·셰이더 컴파일이
-     수 배 느릴 수 있다.
-2. Signing & Capabilities에서 본인 팀을 지정한다 (bundle ID `com.doran.benchmarkvideo`, 필요하면 변경).
-3. LiDAR 기기(iPhone 12 Pro 이상 Pro 계열 / iPad Pro 2020 이상)를 연결하고 Run.
-4. 첫 실행 시 카메라 권한을 허용한다. 우하단 "스캔 시작"을 누르면 좌하단 미니맵이 채워진다.
-
-시뮬레이터에서는 `sceneDepth`가 nil이라 "지원되지 않는 기기" 화면이 뜬다. 단위 테스트만 시뮬레이터에서 돈다.
-
-## 구현 체크리스트
-
-요구사항 번호는 `docs/spec/requirements.md` 기준. 상태: ✅ 구현·검증 / 🔶 구현, 실기기 미검증 / ❌ 미구현.
-
-### R1. 실시간 공간 스캔
-
-| 항목 | 상태 | 구현 |
-| --- | --- | --- |
-| R1-1 실시간 스캔, 화면 반영 | ✅ | RealityKit `sceneReconstruction` mesh 와이어프레임 (`View/ARPreviewView.swift`). 표시는 스캔 중에만, 첫 시작 시 재구성 리셋 — 와이어프레임 = 이번 스캔이 훑은 곳("체크무늬 = 스캔 커버리지"). 준비 전엔 "주변 인식 중…" 배지 |
-| R1-2 시작 / 일시정지 / 재개 / 초기화 | ✅ | `ViewModel/ScanViewModel.swift`. 일시정지는 세션 유지·격자 누적만 중단(궤적·마커는 계속, mesh 표시는 숨김), 초기화는 격자·궤적·트래킹 리셋. 전체화면 뷰어를 열면 자동 일시정지·닫으면 복귀(수동 일시정지는 존중) |
-| R1-3 상태 피드백 | ✅ | 상태 배지(대기/스캔 중/일시정지), 누적 포인트 수, 관측 셀 수, 트래킹 경고, mesh 준비 배지 |
-| R1-4 트래킹 실패 처리 | ✅ | `cameraDidChangeTrackingState` 5종 메시지, 세션 중단 배지, 세션 실패 안내 화면. 앱은 계속 동작 |
-
-### R2. Top-Down 실시간 Minimap
-
-| 항목 | 상태 | 구현 |
-| --- | --- | --- |
-| R2-1 실시간 갱신 | ✅ | 콜백마다 격자 누적 → 스냅샷 발행 (약 10Hz). 사후 일괄 처리 단계 없음 |
-| R2-2 Top-down 투영 | ✅ | 월드 xz 평면, 5cm 셀 400×400 occupancy grid + 셀별 카메라 색 (`Model/OccupancyGrid.swift`). 벽은 원색, 바닥은 절반 밝기, 미관측은 투명. 스케일 실측: 1.4m 책상 정합 |
-| R2-3 현재 위치·방향 | ✅ | 삼각형 마커 + 시야 부채꼴 (`View/MinimapView.swift`), heading은 단위 테스트로 고정, 실기기 회전·이동 정합 확인 |
-| R2-4 오버레이 배치·전체화면 | ✅ | 좌하단 160pt 오버레이 — 카메라 중앙 고정, 반경 2m 근접 뷰. 배경은 정점 색 mesh의 직교 하향 실시간 렌더, 마커·궤적 캔버스 정합. 탭하면 전체화면 2D/3D 뷰어(2D도 mesh top-down, 세계 창 팬·줌) |
-| R2-5 좌표계 기준 명시 | ✅ | 월드 고정 north-up. 이유는 `DESIGN.md` 3.3절 |
-| 선택: auto-fit | ✅ | 전체화면에서 관측 영역 + 카메라를 포함하는 정사각 crop (`Model/MinimapRenderer.swift`). 오버레이는 카메라 중심 고정 창 (`DESIGN.md` 3.4절) |
-| 선택: 이동 궤적 | ✅ | 0.25m 간격 궤적선 — 일시정지 중에도 기록, 트래킹 normal일 때만 |
-| 선택: 팬 / 줌 | ✅ | 전체화면 세계 창 — 핀치 = 반경(0.5~20m)·드래그 = 중심 이동, 직교 카메라 추종. 확대 상태 측정 실증(1.34m/1.4m 책상). 회전은 north-up 원칙상 제외 (R2-5) |
-| 선택: 거리·면적 측정 | ✅ | 전체화면 두 점 탭 → 거리(m) + 관측 면적(m²). 실기기 검증: 1.4m 책상 측정 1.38/1.40m (±1.4%) |
-
-### R3. 실시간 성능
-
-| 항목 | 상태 | 구현 |
-| --- | --- | --- |
-| R3-1 UI 30fps 이상 | ✅ | 실측 60.0fps (최저 59.9) — baseline 최악 부하·최종 빌드(SCNView 미니맵 포함) 재측정 모두 유지. 깊이 처리를 전용 직렬 큐로 격리한 구조 덕 |
-| R3-2 3분 이상 연속 스캔 | ✅ | 실측: 최종 빌드 4.5분 생존·경고 없음, footprint 445 → 570MB (재빌드 스킵·재사용으로 1차 측정 770MB 대비 완화). 앱 격자 원시 배열은 고정(약 1.28MB, Array 오버헤드 별도), 증가분은 ARKit mesh 앵커·복셀 색 |
-| R3-3 직접 측정한 수치 | ✅ | Debug 자가 계측 2회(09-04 / 최종 빌드 09-05 재검증) — 콜백 창 p50 12~14ms, points/frame ≤ 3,072, 일시정지 중 부하 0 실증. 표와 해석은 `DESIGN.md` 10절 |
-
-### R4. UI/UX
-
-| 항목 | 상태 | 구현 |
-| --- | --- | --- |
-| R4-1 설명 없이 사용 가능 | ✅ | 화면에 버튼 하나("스캔 시작") + 미니맵. 상태별로 버튼이 바뀜 |
-| R4-2 권한·미지원·트래킹 안내 | ✅ | 권한 거부 → 안내 + 설정 열기(재설치 흐름으로 실기기 확인), 미지원 기기 → 안내 화면, 트래킹 불량 → 경고 배지 |
-| R4-3 조작 흐름 | ✅ | 시작 → (일시정지 ↔ 재개) → 초기화 단일 흐름 |
-
-### 선택 요구사항
-
-| 항목 | 상태 |
-| --- | --- |
-| 테스트 코드 | ✅ `BenchMarkVideoTests/` 41건 — 좌표 변환·버퍼 필터·색 샘플링·격자 누적·높이 재기준·crop·역변환·렌더 재사용·파이프라인 궤적·시작 높이·reset 세대·mesh 스케줄·ViewModel 출력 반영·전체화면 전이·.ply 직렬화·복셀 색 EMA·진단 창 집계 |
-| auto-fit, 이동 궤적 | ✅ 위 R2 표 |
-| 성능 최적화 전후 비교 | ✅ stride 1·스로틀 0 baseline 대비 콜백 약 9배·points 16배 절감, 큐 포화 방지 실증 — `DESIGN.md` 10절 |
-| 거리·면적 측정 | ✅ 실기기 검증 — 1.4m 책상 측정 1.38/1.40m (±1.4%), 면적 라벨 스캔 연동 |
-| 스캔 결과 내보내기 | ✅ 실기기 검증 — 공유 시트(iOS가 3D 항목 인식)·AirDrop 전송, .ply 검판(vertex 정합·격자 정렬·색) |
-| 드리프트·정합 보정 시도 | ✅ 재로컬라이즈 복귀 후 1초 안정화 창 동안 누적·궤적 보류 (`DESIGN.md` 12절). 실기기 검증: 복귀 후 pts 696,499에서 1.5초+ 동결 → 재개, 격자 정합 유지(벽 한 겹) |
-| 3D 재구성 뷰어 | ✅ 전체화면 2D/3D 통합 뷰어 — 정점 색 mesh(SceneKit) + 돌하우스 컬링(내부 투시), 회전·줌·팬, 바닥 탭 측정(2D와 측정 상태 공유 — 실기기 실증 1.34m/2.21m) |
-
-## 아키텍처
-
-```
-ARView(RealityKit) ─ session ─► ARSessionManager (delegateQueue: scan.processing)   [Model]
-                                     │ 스로틀(≥100ms) + 게이트(tracking·안정화) → ScanPipeline
-                                     │ 샘플링(stride 4, confidence≥medium)
-                                     ▼
-                          DepthFrameProcessor (unprojection, 순수 함수 — 단위 테스트)  [Model]
-                                     ▼
-                          OccupancyGrid (5cm cell, 고정 400×400, floor/wall hit)    [Model]
-                                     ▼
-                          MinimapRenderer (used-bounds crop → MinimapSnapshot)      [Model]
-                                     │
-      VoxelColorStore (월드 복셀 색) ─┤─ GridExporter (.ply 점군)                    [Model]
-      + ARMeshAnchor → MeshBuilder (정점 색 ColoredMesh)                            [Model]
-                                     ▼  AsyncStream<ScanOutput> 하나 (snapshot / event / mesh / pointCloud / plyFile)
-                          ScanViewModel (@Observable, MainActor, for await로 상태 반영) [ViewModel]
-                                     ▼
-        ContentView · ExpandedMapView · MinimapView · ARPreviewView                 [View]
-        MeshTopDownView (미니맵 배경) · PointCloudViewerView (2D/3D 뷰어·측정)       [View]
-```
-
-Model은 `scan.processing` 직렬 큐에서만 돌고, ViewModel은 MainActor다. 계층 경계가 곧 스레드 경계라서 MVVM을 택했다 — 파이프라인 전 과정, 좌표 변환, 바닥·천장 필터, 격자 해상도 근거, 스레딩, 성능은 `DESIGN.md`. 좌표계·동시성 규약은 `TECH_RULES.md`. 파일 배치는 `docs/architecture/folder-structure.md`.
-
-## 사용한 라이브러리·오픈소스
-
-- 서드파티 라이브러리 없음. Apple 시스템 프레임워크만 사용: ARKit, RealityKit, SwiftUI, Observation, CoreGraphics, simd, XCTest.
-- 참고한 코드: Apple 샘플 [Visualizing a Point Cloud Using Scene Depth](https://developer.apple.com/documentation/arkit/displaying-a-point-cloud-using-scene-depth)의 역투영 방식(intrinsics 역행렬 + y·z 부호 반전). 코드를 복사하지 않고 `Model/DepthFrameProcessor.swift`에 CPU 버전으로 다시 작성했다. Metal 렌더러는 가져오지 않았다 (`DESIGN.md` 4절). 라이선스: Apple Sample Code License (개념 참고 범위).
-
-## 성능 측정 결과 (R3)
-
-iPhone 15 Pro · iOS 26.6. Development(Debug) 자가 계측 2회 — 1차(09-04, 3분) + 최종 빌드 재검증(09-05, 4.5분·일시정지 포함) — 와 3차 Release·Debug 계측 빌드 판독(09-06). 전체 표·해석은 `DESIGN.md` 10절:
-
-- 콜백 처리(최종 빌드, 3초 창): p50 12~14ms / p95 13~16ms / max 20.8ms. 100ms 처리 주기 안에서 시간 경과에 따른 저하 없이 평탄했고 전용 직렬 큐에서 실행되어 UI 60fps를 유지했다. 복셀 색 누적 추가 비용은 +1ms 수준.
-- 프레임당 처리 점: 970~3,072 — 설계 상한 준수.
-- 최종 빌드 4.5분 생존, 경고 없음. footprint 445 → 570MB — 증가분은 ARKit mesh 앵커·복셀 색(스캔 면적 비례), 앱 격자는 고정. 일시정지 40초 구간 처리 스킵·메모리 평탄 실증(mesh 재빌드 스킵).
-- UI fps: 60.0 (최저 59.9) — baseline 최악 부하와 최종 빌드(SCNView 미니맵 상시 렌더 포함) 모두에서 유지. 전체화면 전환 순간만 일시 하락.
-- 전후 비교(stride 1·스로틀 0 baseline 대비): 콜백 107.7ms → 11.9ms (약 9배), points/frame 49,152 → ≤3,072 (16배). baseline은 처리 큐 포화 + ARFrame 11~13개 적체 경고(카메라 공급 중단 직전) — 스로틀·샘플링이 이를 막는 실증. 상세 표는 `DESIGN.md` 10절.
-- **3차 Release 계측 빌드(09-06, 205초, 같은 동선 Debug 210초와 비교)**: 제출 빌드와 같은 `-O` 코드에 명령줄 조건으로 패널만 얹어 측정. 콜백 3초 창 p50 1.9ms / p95 2.8ms (최대 7.1ms), mesh CPU 빌드 중앙값 7.3ms, 메모리 388 → 590MB (피크 594.6MB), DisplayLink 60.0Hz·최대 간격 16.7ms 상시 (예외는 시작·발열 전환·전체화면 3구간). 같은 조건 Debug는 p50 23.4 / p95 28.1ms, DisplayLink 59.7Hz·간격 33ms 반복. 두 빌드 모두 3분 이상 연속 세션에서 강제 종료·경고 없음 (R3-2). 발열은 연속 촬영으로 `높음` 상태였고, 냉각 상태 재측정은 없다.
-
-## 알려진 버그·제약
-
-- 드리프트를 보정하지 않는다. 실기기 확인 결과 방 한 바퀴 규모에서는 드리프트가 셀 해상도(5cm) 이하 — 재관측 점이 기존 셀에 겹쳐 벽이 한 겹으로 유지됐다 (`DESIGN.md` 12절). 더 큰 공간·장시간은 미확인.
-- 바닥·천장 구분이 스캔 시작 시 기기 높이(바닥 위 약 1.2~1.5m)에 의존한다. 실기기 확인: 앉아서(약 0.6m) 시작하면 바닥이 벽 취급(원색)으로 칠해져 벽/바닥 의미 구분이 사라진다. 공간 형태 가독성과 앱 동작은 유지.
-- 격자는 ARKit 월드 `x = 0, z = 0` 중심 20m × 20m 고정이다. 세션 attach·`resetTracking` 시 정해진 월드 원점을 사용하고 `start()`는 x/z를 재중심하지 않는다. 각 축 약 ±10m인 격자 밖의 점은 버린다. 스캔 시작 시 따로 고정하는 값은 높이 분류용 `scanOriginY`다.
-- 트래킹이 limited인 동안 누적·궤적 기록을 중단한다(normal 게이트). 단 극단적으로 흔들면 ARKit이 normal을 유지한 채 포즈가 오염돼 유령 셀·궤적 뻗침이 생길 수 있다 — 게이트로 걸러지지 않으며 초기화로 복구한다.
-- `excessiveMotion` 경고는 iPhone 15 Pro에서 유발 불가였다 (트래킹이 흔들기에 강함). 경고 경로 자체는 `insufficientFeatures`로 실증.
-- 트래킹 회복 직후 새 영역의 mesh는 ARKit 재구성 재개까지 수 초 뒤에 나타난다. 기존 영역은 즉시 보인다.
-- 트래킹 상실 직후 ARKit mesh 앵커가 일시적으로 비어 미니맵 배경이 mesh에서 격자 fallback으로 바뀔 수 있다 (09-06 Development 진단 녹화 관찰, 커밋 5111bae 본문). 복귀 후 다음 1.5초 빌드에서 mesh가 돌아온다.
-- 미니맵 회전 없음 — north-up 고정 원칙(R2-5). 팬·줌은 전체화면 세계 창으로 지원.
-
-## 검증
-
-### 녹화 진단 패널 (Development 전용)
-
-`BenchMarkVideo-Development`의 Debug 구성은 `SCAN_DIAGNOSTICS` 컴파일 조건을 정의하고 화면
-좌상단에 `진단 D1` 패널을 표시한다. 제출용 `BenchMarkVideo-Production`의 Release 구성에는
-이 조건이 없어 패널과 계측 코드가 컴파일되지 않는다. `DEBUG`는 최적화·assert 등 일반 개발
-빌드 의미로만 남기고, 스캔 진단 기능의 경계로 사용하지 않는다.
-
-- **갱신**: 제어 상태와 실제 누적 gate, 격자·mesh UI 수신 시각, mesh 원본 프레임 시각,
-  누적 점·셀, 깊이 소스(smoothed/raw)와 최근 처리 프레임 시각, 연속 누적 허용 시간을 표시한다. `격자만 보기`로 같은 장면의 occupancy grid와
-  mesh 표시 차이를 녹화할 수 있다.
-- **부하**: `CADisplayLink`, 처리 콜백 약 0.5초 창 평균·최대와 3초 창 p50·p95, 누적 수신·깊이 처리
-  프레임 수, mesh CPU 빌드, 메모리·피크, 앵커·정점·복셀 수와 발열 상태를 표시한다.
-  패널에 없는 계측은 `frameCallback` signpost(Instruments Points of Interest)와 `perf` Logger
-  콘솔 로그뿐이며, 두 값 모두 패널과 같은 원천을 쓴다.
-- **좌표·기록**: 월드 위치·heading·시작 높이와 최근 상태 전환을 표시한다.
-  시나리오가 바뀔 때 `구간 #` 버튼을 눌러 영상에서 경계를 남긴다.
-
-패널의 `UI 수신`은 SwiftUI에 값이 도착한 시점이며 GPU 표시 완료 시각이 아니다. 실제 벽이
-미니맵에 나타나는 지연, 격자와 mesh의 공간 정합, 화면 끊김은 패널과 녹화 화면을 함께 판독한다.
-Debug와 Release 계측 빌드의 수치를 같은 패널로 읽어 최적화 효과와 제출 빌드 기준 성능을 분리해 본다.
-
-**Release 계측 빌드.** 최적화된 코드의 내부 수치가 필요하면 pbxproj를 바꾸지 않고 명령줄에서만
-조건을 추가해 Release + `SCAN_DIAGNOSTICS` 빌드를 기기에 설치한다 (`scripts/check-structure.sh`가
-Release 구성 정의를 막으므로 이 경로가 유일하다). 제출 빌드와 같은 `-O` 코드에 패널만 얹힌 상태다.
-
-```bash
-# xcodebuild는 UDID(xcodebuild -showdestinations의 id), devicectl은 CoreDevice 식별자(devicectl list devices)를 쓴다 — 서로 다르다.
-xcodebuild build -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Production \
-  -configuration Release -destination 'id=<UDID>' -derivedDataPath /tmp/release-diag \
-  -allowProvisioningUpdates SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) SCAN_DIAGNOSTICS'
-xcrun devicectl device install app --device <CoreDevice 식별자> \
-  /tmp/release-diag/Build/Products/Release-iphoneos/BenchMarkVideo.app
-```
-
-패널 머리글이 `Release(-O) · 진단 ON`으로 바뀌어 녹화에서 Debug 계측 영상과 구분된다.
-
-코드를 바꾼 뒤 아래 셋을 모두 통과해야 완료다. 계층 선택 기준은 `.codex/skills/test-policy/SKILL.md`.
-
-```bash
-# 1. 단위 테스트 (Model 순수 로직·ViewModel 상태 전이, 시뮬레이터) — 41건
-xcodebuild test -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' CODE_SIGNING_ALLOWED=NO
-
-# 2. 실기기 타깃 컴파일 (서명 없이)
-xcodebuild -project BenchMarkVideo.xcodeproj -scheme BenchMarkVideo-Development \
-  -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
-
-# 3. 구조·문서 계약 검사 (MVVM 배치, 계층 import 규칙, 테스트 배치, symlink, 문서 경로)
-scripts/check-structure.sh
-```
-
-시뮬레이터 이름은 `xcrun simctl list devices available`에서 있는 것으로 바꾼다.
-
-## 실기기 수동 검증 매트릭스
-
-런타임 동작을 바꾼 커밋은 아래 시나리오 중 영향받는 항목을 실기기에서 확인하고 결과를 커밋 본문에 남긴다. "확인 방법"이 실패 판정 기준이다.
-
-> **2026-09-06 단방향 리팩토링 재검증 (Release, 166초 1편, 1fps·2fps 프레임 판독).** 출력 스트림 통합·`ScanPipeline` 분리·전체화면 상태 승격 후 같은 방에서 한 테이크로 재확인했다: 시작 → "주변 인식 중…" 배지 → 2분 걷기(13,846 → 2.88M pts, 미니맵·궤적 실시간) → 미니맵 탭(자동 일시정지, 관측 면적 8.5 m², 두 점 측정 1.68 m, 팬·줌) → 3D 전환(정점 색 mesh 회전) → 내보내기(공유 시트 `scan` 103KB) → 닫기(스캔 재개, 카운트 이어짐) → 일시정지 → 홈 복귀("트래킹 초기화 중…" → "위치 재인식 중…" → 해제, 미니맵·궤적 유지) → 재개(2,613,975 → 2,618,515 pts 이어 누적) → 초기화(미니맵 비움, "스캔 시작") → 재시작(173,447 pts 새 누적). 영향 행 전부 통과. 미포착: "세션이 중단되었습니다" 배지는 2fps 판독에 잡히지 않았다(0.5초 미만 추정, 복귀 흐름 자체는 정상).
-
-결과 열: iPhone 15 Pro (iPhone16,1) × iOS 26.6, 2026-09-04 — 사용자 촬영 화면 녹화 22편을 1fps 프레임 추출로 판독한 회차. 세부 근거는 해당 일자 docs 커밋 본문. 2026-09-06 3차 녹화(Release·Debug 계측 빌드 각 1편, 약 3.5분)로 스캔 시작·일시정지·실시간 갱신·전체화면·성능 행을 재확인했다. 수치와 판독 한계는 `DESIGN.md` 10절에 있다.
-
-| 시나리오 | 요구사항 | 확인 방법 | 결과 |
-| --- | --- | --- | --- |
-| 카메라 권한 거부 | R4-2 | 첫 실행에서 거부 → "실행할 수 없습니다" 화면과 설정 열기 링크 표시 | 통과 (앱 삭제 후 재설치 흐름, 허용 후 정상 복귀까지) |
-| 미지원 기기 | R4-2 | 비-LiDAR 기기 또는 시뮬레이터 → "지원되지 않는 기기" 화면 | 통과 (시뮬레이터 = sceneDepth 미지원 환경에서 안내 화면 확인. 비-LiDAR 실기기 미보유 — 동일 코드 경로) |
-| 스캔 시작 | R1-1, R1-3 | 시작 전에는 카메라 위에 mesh가 없음. 시작 후 상태가 "스캔 중", 포인트·셀 카운트 증가. mesh 준비 전이면 "주변 인식 중…" 배지가 뜨고 첫 mesh 표시와 함께 사라짐 | 통과 (배지: 콜드 시작·초기화 후·재설치 후 3개 트리거 확인) |
-| 일시정지·재개 | R1-2 | 카운트 증가 멈춤, mesh 표시 사라짐, 위치 마커와 궤적선은 계속 움직임. 재개하면 mesh 즉시 재표시, 새 영역이 실제 거리만큼 떨어진 자리에 그려지고 궤적이 두 영역을 잇는다 | 통과 (09-06 리팩토링 후 재확인) |
-| 초기화 | R1-2 | 미니맵 비워지고 "대기" 상태, 궤적 사라짐 | 통과 (09-06 리팩토링 후 재확인 — 재시작 시 새 누적) |
-| 실시간 갱신 | R2-1 | 걸으면서 미니맵이 1초 안에 따라 채워짐 | 통과 (09-06 리팩토링 후 재확인) |
-| 미니맵 방향 | R2-3, R2-5 | 기기를 제자리에서 회전 → 맵은 고정, 마커 삼각형만 회전 (north-up) | 통과 |
-| 오버레이 중심 고정 | R2-3, R2-4 | 걸어 다녀도 오버레이의 마커는 중앙, 맵이 밑에서 흐름. 창 배경이 균일하고(어두운 사각형 없음) 반경 2m 밖은 사라졌다가 되돌아가면 다시 나타남. 전체화면은 관측 영역 auto-fit + 팬·줌 | 통과 |
-| 미니맵 색상 | R2-2 | 관측 셀이 카메라에 비친 색으로 칠해짐 — 벽 원색, 바닥 절반 밝기. 흰색 단색이 아님 | 통과 |
-| 스케일 | R2-2 | 알려진 길이의 물체를 스캔 → 미니맵 셀 폭 환산이 실측과 정합 | 통과 (1.4m 책상, 오버레이 창 픽셀 측정 ±20%) |
-| 바닥·천장 필터 | R2-2 | 바닥을 향해 스캔해도 벽(밝은 픽셀)이 생기지 않고, 천장은 무시 | 통과 (바닥: cells 불변 실증 / 천장: cells 3,658→3,660) |
-| 전체화면 전환 | R2-4 | 미니맵 탭 → 전체화면, 배경 탭 → 복귀 | 통과 (09-06 리팩토링 후 재확인 — 자동 일시정지·복귀, 측정 1.68 m, 3D, 내보내기 공유 시트) |
-| 트래킹 경고 | R1-4 | 트래킹 limited 시 경고 배지, 앱 지속 | 통과 (`insufficientFeatures`로 실증. `excessiveMotion`은 유발 불가 — 알려진 제약 절) |
-| 세션 중단 | R1-4 | 앱을 백그라운드로 보냈다가 복귀 → "세션이 중단되었습니다" 배지가 떴다가 사라짐. 이어서 "위치 재인식 중…"이 잠깐 뜨고, 복귀 후 이전 미니맵이 그 자리에 유지됨 (원점 불변) | 통과 (약 4초 내 재개, 격자 같은 자리. 09-06 리팩토링 후 재확인: "트래킹 초기화 중…" → "위치 재인식 중…" → 해제, 미니맵·궤적 유지, 재개 후 이어 누적. 중단 배지는 2fps 판독 미포착) |
-| 성능 | R3 | `DESIGN.md` 10절 측정 — FPS ≥30, 3분 스캔 중 강제 종료·메모리 경고 없음, 처리량 상한 준수 | 통과 — UI 60.0/최저 59.9fps, 3분 이상 생존·경고 없음, 프레임당 ≤3,072점. 3차(09-06) Release 계측 빌드 205초·Debug 210초 연속 세션, Release 콜백 p50 1.9 / p95 2.8ms, DisplayLink 60.0Hz 상시 |
-| 녹화 진단 패널 | — | 계측 빌드에서 패널 3탭 판독 가능, 머리글이 빌드 구성을 표시, 격자만 보기 토글로 미니맵 배경 전환, 초기화 시 세대 증가, 전체화면 자동 일시정지가 gate `일시정지`로 표시 | 통과 (09-06) — 3차 Release·Debug 각 3.5분 OCR 판독으로 부하·갱신 탭과 머리글 `Release(-O)`/`Debug(-Onone)` 구분 확인. 좌표·기록 탭, 격자만 보기(격자·mesh 정합 일치), 초기화 세대 0 → 1 전환은 같은 날 Development 진단 녹화(139초·184초, 커밋 5111bae 본문)에서 확인. 재인식 안정화 gate는 09-04 별도 복귀 시나리오에서 검증 |
-
-결과 기록 형식: `기기 × iOS × 시나리오 × 결과(통과/실패/미검증)`. 실패는 `LLM_REPORT.md` 사례 후보이며, 파라미터를 바꾸면 `DESIGN.md` 근거를 갱신한다.
+- [개발·검증 가이드](docs/DEVELOPMENT.md) — 요구사항 구현 체크리스트(R1~R4), 아키텍처, 성능 측정 결과(R3) 상세, 알려진 버그·제약, 빌드·테스트 명령, 진단 패널, 실기기 수동 검증 매트릭스
+- [설계 문서](DESIGN.md) — 파이프라인과 설계 판단 근거
+- [LLM 활용 리포트](LLM_REPORT.md) — LLM과 사람의 역할 구분, 기각·수정 사례

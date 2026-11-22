@@ -19,14 +19,20 @@ nonisolated enum GridExporter {
 
     /// 관측 셀(임계값 이상)을 셀 중심 좌표의 색 점으로. 벽은 y=0.5, 바닥은 y=0.
     static func pointCloud(grid: OccupancyGrid) -> GridPointCloud {
+        // 위치와 색 배열을 같은 인덱스로 채울 빈 점군을 만든다.
         var cloud = GridPointCloud()
+        // 관측된 셀이 하나도 없으면 빈 점군을 그대로 반환한다.
         guard let b = grid.usedBounds else { return cloud }
+        // 고정 400×400 전체가 아니라 실제 사용된 사각 범위만 순회한다.
         for row in b.minRow...b.maxRow {
             for col in b.minCol...b.maxCol {
+                // 2차원 셀 좌표를 wallHits·floorHits·colors의 1차원 인덱스로 바꾼다.
                 let idx = row * OccupancyGrid.dimension + col
                 let isWall = grid.wallHits[idx] >= OccupancyGrid.wallHitThreshold
                 let isFloor = grid.floorHits[idx] >= OccupancyGrid.floorHitThreshold
+                // 표시 임계값을 넘지 못한 단발성 노이즈 셀은 내보내지 않는다.
                 guard isWall || isFloor else { continue }
+                // 셀 중심을 월드 xz로 복원하고 벽과 바닥을 서로 다른 대표 높이에 둔다.
                 let w = OccupancyGrid.worldXZ(continuousCell: SIMD2(Float(col), Float(row)))
                 cloud.positions.append(SIMD3(w.x, isWall ? wallExportHeight : 0, w.y))
                 cloud.colors.append(grid.colors[idx])
@@ -37,10 +43,13 @@ nonisolated enum GridExporter {
 
     /// 점군을 ASCII .ply로 직렬화 (내보내기 공유용).
     static func ply(grid: OccupancyGrid) -> String {
+        // 3D fallback 화면과 동일한 임계값·좌표 변환 결과를 직렬화 입력으로 사용한다.
         let cloud = pointCloud(grid: grid)
+        // 각 위치와 색을 PLY의 x y z r g b vertex 한 줄로 변환한다.
         let vertices = zip(cloud.positions, cloud.colors).map { p, c in
             String(format: "%.3f %.3f %.3f %d %d %d", p.x, p.y, p.z, c.x, c.y, c.z)
         }
+        // vertex 개수와 속성 순서를 선언한 헤더 뒤에 모든 vertex 행을 붙인다.
         return """
         ply
         format ascii 1.0

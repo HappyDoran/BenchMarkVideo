@@ -65,6 +65,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     #endif
 
     static var isDeviceSupported: Bool {
+        // smoothedSceneDepth 지원 여부로 LiDAR 파이프라인을 실행할 수 있는 기기인지 판정한다.
         ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth)
     }
 
@@ -89,9 +90,11 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     /// mesh는 첫 프레임 도착 직후(카메라 패스스루가 이미 시작된 시점) 켠다 —
     /// 스캔 시작 직후 "카메라 위에 아무 변화 없는 2초"를 없애기 위한 예열 (구성 교체는 트래킹을 유지).
     func attach(to session: ARSession) {
+        // RealityKit의 ARView가 소유한 세션을 보관하고 모든 delegate 작업을 직렬 큐로 보낸다.
         self.session = session
         session.delegate = self
         session.delegateQueue = processingQueue
+        // 새 세션의 예열·mesh 준비 감지 상태를 큐 안에서 초기화한다.
         processingQueue.async {
             self.didRequestMeshWarmUp = false  // retry로 ARView가 재생성될 때도 예열
             self.didReportMeshReady = false    // 새 세션 = 앵커 없음
@@ -102,13 +105,16 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     private func runSession(reset: Bool, withMesh: Bool) {
+        // ARView가 아직 연결되지 않았다면 구성할 세션이 없으므로 종료한다.
         guard let session else { return }
+        // 월드 추적과 시간축 노이즈가 완화된 LiDAR 깊이를 요청한다.
         let config = ARWorldTrackingConfiguration()
         config.frameSemantics = .smoothedSceneDepth
         if withMesh, ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             config.sceneReconstruction = .mesh  // 카메라 프리뷰 위 스캔 시각화용
         }
         meshEnabled = withMesh
+        // reset 요청일 때만 좌표 추적·앵커·재구성 결과를 함께 비운다.
         let options: ARSession.RunOptions = reset
             ? [.resetTracking, .removeExistingAnchors, .resetSceneReconstruction] : []
         session.run(config, options: options)
@@ -122,6 +128,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 재생성 ~1초 공백은 '주변 인식 중…' 배지가 커버). 셰이더 예열 효과는 유지된다.
         if isFirstStartSinceAttach {
             isFirstStartSinceAttach = false
+            // 구 mesh가 사라진 빈 프레임을 확인하기 전까지 준비 이벤트 감지를 잠근다.
             processingQueue.async { self.awaitingMeshClear = true; self.didReportMeshReady = false }
             if let session {
                 let config = ARWorldTrackingConfiguration()
@@ -130,11 +137,13 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
                     config.sceneReconstruction = .mesh
                 }
                 meshEnabled = true
+                // 월드 tracking은 유지하고 스캔 전 예열 mesh만 비워 이번 기록 범위와 맞춘다.
                 session.run(config, options: [.resetSceneReconstruction])  // 트래킹·앵커는 유지, mesh만 리셋
             }
         } else {
             enableMeshIfNeeded()
         }
+        // 실제 누적·경로·mesh 예약 상태는 processingQueue에서 한 순서로 변경한다.
         processingQueue.async {
             self.isAccumulating = true
             self.hasStarted = true
@@ -144,10 +153,12 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     /// 메인 스레드에서만 호출 (meshEnabled 접근).
     private func enableMeshIfNeeded() {
+        // 이미 활성화된 세션을 다시 run하지 않아 불필요한 구성 교체를 피한다.
         if !meshEnabled { runSession(reset: false, withMesh: true) }
     }
 
     func pauseAccumulating() {
+        // ARSession은 계속 실행하고 깊이 누적 플래그만 직렬 큐에서 끈다.
         processingQueue.async { self.isAccumulating = false }
     }
 
@@ -163,6 +174,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
 
     /// 그리드·궤적·트래킹 전부 초기화.
     func reset() {
+        // 큐 전용 파이프라인 상태부터 순서대로 초기화한다.
         processingQueue.async {
             self.isAccumulating = false
             self.hasStarted = false
@@ -191,6 +203,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // 사용자가 "스캔 시작"을 누를 때 이미 앵커·셰이더가 준비돼 있다.
         if !didRequestMeshWarmUp {
             didRequestMeshWarmUp = true
+            // session.run과 meshEnabled는 메인 전용이므로 여기서 한 번만 MainActor로 넘긴다.
             DispatchQueue.main.async { self.enableMeshIfNeeded() }
         }
         // 스로틀: 처리 주기 미달이면 즉시 반환 (ARFrame 잡지 않음)
@@ -203,6 +216,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         // meshReady: 프레임 앵커 스냅샷의 없음→있음 전이로 감지. didAdd 콜백 대신 프레임 기준인 이유 —
         // 프레임은 세션 상태와 일관되고 이 큐(직렬)에서만 읽으므로, reset 직후 구 세션 앵커의
         // didAdd가 플래그 클리어 뒤에 끼어들어 가짜 이벤트를 쏘고 가드를 재무장하는 경합이 없다.
+        // 일반 앵커를 제외하고 공간 재구성 기하를 가진 ARMeshAnchor만 추린다.
         let meshAnchors = frame.anchors.compactMap { $0 as? ARMeshAnchor }
         if awaitingMeshClear {
             // reset 직후: 옛 앵커를 아직 든 구 프레임은 무시, 앵커가 지워진 프레임을 보고서야 재무장
@@ -219,6 +233,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             pendingRelocalizationSettle = false
             settleUntil = frame.timestamp + Self.relocalizationSettleTime
         }
+        // 현재 프레임이 재로컬라이즈 후 포즈 수렴 대기 창 안인지 계산한다.
         let isSettling = frame.timestamp < settleUntil
 
         // 트래킹 normal일 때만 누적 — limited 상태의 포즈로 찍은 점은 유령 벽로 굳는다.
@@ -227,7 +242,9 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
         let gate = FrameGate(started: hasStarted,
                              accumulate: isAccumulating && !isSettling && isNormal,
                              track: hasStarted && !isSettling && isNormal)
+        // 누적할 때만 smoothed 우선으로 깊이 버퍼를 잡아 pause 중 프레임 점유를 줄인다.
         let depth = gate.accumulate ? (frame.smoothedSceneDepth ?? frame.sceneDepth) : nil
+        // ARFrame 전체 대신 이번 동기 처리에 필요한 작은 값과 임시 버퍼 참조만 묶는다.
         var input = FrameInput(timestamp: frame.timestamp, cameraTransform: frame.camera.transform,
                                intrinsics: frame.camera.intrinsics,
                                imageResolution: frame.camera.imageResolution,
@@ -238,6 +255,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
             input.capturedImage = frame.capturedImage
             input.depthSource = frame.smoothedSceneDepth != nil ? "smoothed" : "raw"
         }
+        // 같은 delegate 직렬 큐에서 즉시 소비해 ARFrame과 버퍼 참조를 밖으로 보관하지 않는다.
         let result = pipeline.process(input, gate: gate)
 
         #if SCAN_DIAGNOSTICS
@@ -258,6 +276,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+        // ARKit의 상세 tracking 상태를 사용자가 행동할 수 있는 한국어 안내로 바꾼다.
         let message: String?
         switch camera.trackingState {
         case .normal:
@@ -280,6 +299,7 @@ nonisolated final class ARSessionManager: NSObject, ARSessionDelegate, @unchecke
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
+        // 권한 거부만 설정 이동이 필요한 치명 오류로 구분하고 나머지는 재시도 가능한 메시지로 만든다.
         let isPermission = (error as? ARError)?.code == .cameraUnauthorized
         let message = isPermission
             ? "카메라 권한이 없습니다. 설정에서 허용해 주세요."

@@ -5,7 +5,7 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 
 # 검증 정책
 
-코드 변경과 검증은 같은 작업·같은 커밋에서 움직인다. 검증은 실패가 의미하는 범위로 나눈다. 실행 명령은 `README.md`가 소유한다.
+코드 변경과 검증은 같은 작업·같은 커밋에서 움직인다. 검증은 실패가 의미하는 범위로 나눈다. 실행 명령은 `docs/DEVELOPMENT.md`가 소유한다.
 
 ## 검증 계층
 
@@ -14,7 +14,7 @@ description: 코드를 변경하는 모든 작업에서 적용하는 검증 규�
 | 단위 테스트 | 좌표 변환, 격자 분기, crop 계산 같은 Model 순수 로직의 회귀 | `xcodebuild test … -destination 'platform=iOS Simulator,…'` | Model 변경 |
 | 컴파일 | 타입·격리·import 오류 | `xcodebuild … build CODE_SIGNING_ALLOWED=NO` | 모든 코드 변경 |
 | 구조 검사 | MVVM 배치, 계층 import 규칙, `nonisolated` 누락, 테스트 배치, 문서 symlink·경로·frontmatter | `scripts/check-structure.sh` | 모든 변경 |
-| 실기기 수동 | 실제 스케일·필터 파라미터, 권한·세션 lifecycle, 성능 | `README.md` 수동 매트릭스, `DESIGN.md` 10절 | 런타임 동작·파라미터 변경 |
+| 실기기 수동 | 실제 스케일·필터 파라미터, 권한·세션 lifecycle, 성능 | `docs/DEVELOPMENT.md` 수동 매트릭스, `DESIGN.md` 10절 | 런타임 동작·파라미터 변경 |
 
 ## 테스트 위치와 범위
 

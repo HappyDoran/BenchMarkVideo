@@ -16,8 +16,10 @@ struct PointCloudViewerView: UIViewRepresentable {
     /// 바닥 히트테스트 전용 카테고리 (점군과 분리).
     private static let floorCategory = 2
 
+    /// SceneKit 탭 처리와 측정 마커 상태를 연결할 coordinator를 만든다.
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    /// 현재 점군 또는 mesh로 최초 장면을 만들고 SceneKit 기본 카메라 제스처를 활성화한다.
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
         view.scene = Self.makeScene(cloud: cloud, mesh: mesh)
@@ -30,6 +32,7 @@ struct PointCloudViewerView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
+        // SwiftUI의 최신 binding을 coordinator가 탭 결과에 쓸 수 있도록 갱신한다.
         context.coordinator.parent = self
         // mesh가 갱신되면 장면 재구성 (같은 버전이면 카메라 자세 유지 위해 건드리지 않음)
         let signature = Self.signature(cloud: cloud, mesh: mesh)
@@ -55,12 +58,14 @@ struct PointCloudViewerView: UIViewRepresentable {
         var surfaceHeights: [SIMD2<Float>: Float] = [:]
 
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            // 탭이 SceneKit 뷰에서 온 경우에만 화면 좌표를 3D hit test에 사용한다.
             guard let view = gesture.view as? SCNView else { return }
             let location = gesture.location(in: view)
             // 1순위: 렌더된 mesh 표면 — 침대·가구 모서리를 탭하면 그 표면 점이 잡힌다.
             // (바닥 평면은 isHidden이라 기본 히트테스트에서 제외됨)
             let world: SCNVector3
             if let surface = view.hitTest(location, options: [.ignoreHiddenNodes: true]).first {
+                // 실제 mesh에 닿으면 그 표면의 월드 위치와 높이를 그대로 사용한다.
                 world = surface.worldCoordinates
             } else if let floor = view.hitTest(location,
                                                options: [.categoryBitMask: PointCloudViewerView.floorCategory,
@@ -71,6 +76,7 @@ struct PointCloudViewerView: UIViewRepresentable {
                 return
             }
             let xz = SIMD2(world.x, world.z)
+            // 3D 표시 높이는 따로 캐시하고 거리 의미는 2D와 같은 xz 평면으로 유지한다.
             surfaceHeights[xz] = world.y
             let current = parent.measurePoints
             parent.measurePoints = current.count >= 2 ? [xz] : current + [xz]
@@ -79,10 +85,12 @@ struct PointCloudViewerView: UIViewRepresentable {
         /// 측정 마커·선 노드를 measurePoints와 동기화. 이름으로 지우고 다시 그린다 (점 최대 2개라 비용 무시).
         /// 마커 높이: 3D에서 탭한 점은 실제 표면 높이, 2D에서 온 점(높이 정보 없음)은 바닥 기준.
         func syncMarkers(in view: SCNView, points: [SIMD2<Float>]) {
+            // 장면과 숨겨진 측정 바닥이 준비된 경우에만 marker node를 갱신한다.
             guard let root = view.scene?.rootNode else { return }
             let floorY = root.childNode(withName: "measureFloor", recursively: false)?.position.y ?? 0
             surfaceHeights = surfaceHeights.filter { points.contains($0.key) }   // 리셋·새 측정 시 정리
             func markerY(_ p: SIMD2<Float>) -> Float { (surfaceHeights[p] ?? floorY) + 0.05 }
+            // 이전 측정 전용 노드를 제거하고 최대 두 점을 현재 binding 기준으로 다시 만든다.
             root.childNodes.filter { $0.name == "measure" }.forEach { $0.removeFromParentNode() }
             for p in points {
                 let sphere = SCNSphere(radius: 0.06)
@@ -94,6 +102,7 @@ struct PointCloudViewerView: UIViewRepresentable {
                 root.addChildNode(node)
             }
             if points.count == 2 {
+                // 두 marker의 실제 표시 높이를 사용해 3D 공간에서도 주황색 선으로 연결한다.
                 let vertices = [SCNVector3(points[0].x, markerY(points[0]), points[0].y),
                                 SCNVector3(points[1].x, markerY(points[1]), points[1].y)]
                 let source = SCNGeometrySource(vertices: vertices)
@@ -113,6 +122,7 @@ struct PointCloudViewerView: UIViewRepresentable {
     }
 
     private static func makeScene(cloud: GridPointCloud, mesh: ColoredMesh?) -> SCNScene {
+        // 측정 평면·스캔 기하·초기 카메라를 담을 새 SceneKit 장면을 만든다.
         let scene = SCNScene()
 
         // 측정 탭 대상: 보이지 않는 바닥 평면. 점·삼각형 히트테스트 대신
@@ -132,14 +142,17 @@ struct PointCloudViewerView: UIViewRepresentable {
 
         // 정점 색 mesh가 있으면 삼각형으로 — 점군보다 레퍼런스 앱에 가까운 인상.
         if let mesh, !mesh.positions.isEmpty {
+            // 색이 있는 ARKit 삼각형 mesh를 우선 사용하고 전체 bounds에 맞춰 카메라를 둔다.
             scene.rootNode.addChildNode(SCNNode(geometry: makeMeshGeometry(mesh)))
             addCamera(to: scene, framing: mesh.positions)
             return scene
         }
 
+        // mesh가 없을 때만 격자 기반 점군으로 fallback하며 빈 점군이면 측정 바닥만 반환한다.
         guard !cloud.positions.isEmpty else { return scene }
         addCamera(to: scene, framing: cloud.positions)
 
+        // SIMD3<Float> 배열을 stride 정보와 함께 SceneKit vertex source로 감싼다.
         let count = cloud.positions.count
         let vertexData = cloud.positions.withUnsafeBufferPointer { Data(buffer: $0) }
         let vertexSource = SCNGeometrySource(
@@ -163,6 +176,7 @@ struct PointCloudViewerView: UIViewRepresentable {
                 dataOffset: 0, dataStride: MemoryLayout<Float>.stride * 3)
         }
 
+        // 모든 정점을 한 번씩 가리키는 연속 index로 point geometry element를 만든다.
         let indices = Array(0..<Int32(count))
         let element = indices.withUnsafeBufferPointer { buf in
             SCNGeometryElement(data: Data(buffer: buf), primitiveType: .point,
@@ -183,11 +197,13 @@ struct PointCloudViewerView: UIViewRepresentable {
     /// 초기 카메라: 방 밖 위쪽 사선에서 전체를 내려다보게 배치 — 기본 카메라는 방 "안"에서
     /// 시작해 근평면에 벽이 잘려 보인다(레퍼런스 앱의 아이소메트릭 첫 화면과 같은 각도로 교정).
     private static func addCamera(to scene: SCNScene, framing positions: [SIMD3<Float>]) {
+        // 모든 정점을 포함하는 축 정렬 bounds와 중심을 계산한다.
         var minV = positions[0], maxV = positions[0]
         for p in positions { minV = simd_min(minV, p); maxV = simd_max(maxV, p) }
         let center = (minV + maxV) / 2
         let distance = max(simd_length(maxV - minV), 2) * 1.1
 
+        // bounds 대각선에 비례한 거리와 clipping 범위로 전체 공간이 첫 화면에 들어오게 한다.
         let camera = SCNCamera()
         camera.zNear = 0.05                       // 근접 클리핑 완화
         camera.zFar = Double(distance) * 10
@@ -203,6 +219,7 @@ struct PointCloudViewerView: UIViewRepresentable {
     /// ColoredMesh → 정점 색 삼각형 지오메트리. 조명 없이 색 그대로, 양면 렌더.
     /// MeshTopDownView(미니맵)도 같은 빌더를 쓴다.
     static func makeMeshGeometry(_ mesh: ColoredMesh) -> SCNGeometry {
+        // 월드 정점 배열을 원래 SIMD stride 그대로 SceneKit vertex source로 제공한다.
         let count = mesh.positions.count
         let vertexData = mesh.positions.withUnsafeBufferPointer { Data(buffer: $0) }
         let vertexSource = SCNGeometrySource(
@@ -211,6 +228,7 @@ struct PointCloudViewerView: UIViewRepresentable {
             bytesPerComponent: MemoryLayout<Float>.size,
             dataOffset: 0, dataStride: MemoryLayout<SIMD3<Float>>.stride)
 
+        // UInt8 RGB를 SceneKit color source가 읽는 0...1 Float triplet으로 변환한다.
         var colorFloats = [Float](); colorFloats.reserveCapacity(count * 3)
         for c in mesh.colors {
             colorFloats.append(Float(c.x) / 255)
@@ -225,6 +243,7 @@ struct PointCloudViewerView: UIViewRepresentable {
                 dataOffset: 0, dataStride: MemoryLayout<Float>.stride * 3)
         }
 
+        // ARKit face index를 세 개씩 묶어 triangle geometry element로 만든다.
         let element = mesh.indices.withUnsafeBufferPointer { buf in
             SCNGeometryElement(data: Data(buffer: buf), primitiveType: .triangles,
                                primitiveCount: mesh.indices.count / 3,

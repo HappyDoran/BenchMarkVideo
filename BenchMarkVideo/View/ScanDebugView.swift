@@ -9,6 +9,7 @@ struct ScanDebugView: View {
     @State private var page = 0
 
     var body: some View {
+        // 접을 수 있는 패널 안에서 갱신·부하·좌표 진단 페이지를 전환해 녹화에 남긴다.
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Button(expanded ? "진단 D1 접기" : "진단 D1 열기") { expanded.toggle() }
@@ -26,12 +27,14 @@ struct ScanDebugView: View {
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 #endif
                 Picker("진단 항목", selection: $page) {
+                    // 작은 화면에서 한 번에 필요한 계측 그룹만 보이도록 세 페이지로 나눈다.
                     Text("갱신").tag(0)
                     Text("부하").tag(1)
                     Text("좌표·기록").tag(2)
                 }
                 .pickerStyle(.segmented)
                 TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                    // 센서 출력과 별개인 0.5초 UI 시계로 마지막 수신 경과 시간을 계속 갱신한다.
                     let now = ProcessInfo.processInfo.systemUptime
                     let d = viewModel.diagnostics
                     VStack(alignment: .leading, spacing: 3) {
@@ -40,6 +43,7 @@ struct ScanDebugView: View {
                         Text("제어 \(stateLabel) / 처리 \(d.gate)")
                         Text("계측 수신 \(age(d.timestamp, now)) · \(viewModel.isInterrupted ? "세션 중단" : (viewModel.trackingMessage ?? "트래킹 경고 없음"))")
                         if page == 0 {
+                            // 파이프라인 출력이 ViewModel까지 도착한 시각과 누적 상태를 표시한다.
                             Text("표시 \(displayLabel) · 격자 UI 수신 \(age(viewModel.diagnosticSnapshotTime, now))")
                             Text("mesh UI 수신 \(age(viewModel.diagnosticMeshTime, now)) · 버전 \(viewModel.liveMesh?.version ?? 0)")
                             Text("mesh 원본 프레임 \(age(viewModel.liveMesh?.diagnosticSourceTimestamp ?? 0, now)) · 세대 \(viewModel.liveMesh.map { String($0.diagnosticGeneration) } ?? "—")")
@@ -48,6 +52,7 @@ struct ScanDebugView: View {
                             Text("깊이 \(d.depthSource) · 처리 프레임 시각 \(age(d.frameTimestamp, now))")
                             Text(String(format: "연속 누적 허용 %.1fs · 최장 %.1fs", d.continuousSeconds, d.longestSeconds))
                         } else if page == 1 {
+                            // DisplayLink·콜백·mesh·메모리·발열을 같은 화면에서 비교한다.
                             let fps = FPSMonitor.shared
                             Text(String(format: "DisplayLink %.1fHz / 최대 간격 %.1fms", fps.average, fps.maximumGapMs))
                             Text("DisplayLink 측정 \(age(fps.measuredAt, now)) · 3초 창")
@@ -60,6 +65,7 @@ struct ScanDebugView: View {
                             Text("앵커 \(d.anchors) · 정점 \(viewModel.liveMesh?.positions.count ?? 0) · 복셀 항목 \(d.voxelEntries)")
                             Text("발열: \(thermalLabel)")
                         } else {
+                            // 월드 좌표와 시작 높이, 최근 수동 구간 이벤트를 녹화 판독용으로 보여준다.
                             Text(String(format: "월드 x %.2f / y %.2f / z %.2fm", d.position.x, d.position.y, d.position.z))
                             Text(String(format: "방향 %.1f° · 위 = 월드 −z", (viewModel.snapshot?.cameraHeading ?? 0) * 180 / .pi))
                             Text(d.originY.map { String(format: "시작 y %.2fm · 현재 상대 y %.2fm", $0, d.position.y - $0) } ?? "시작 높이 미확정")
@@ -89,6 +95,7 @@ struct ScanDebugView: View {
     }
 
     private var stateLabel: String {
+        // 내부 ScanState를 좁은 진단 패널에 맞는 짧은 한국어 레이블로 바꾼다.
         switch viewModel.state {
         case .ready: "대기"
         case .scanning: "스캔"
@@ -97,14 +104,17 @@ struct ScanDebugView: View {
     }
 
     private var displayLabel: String {
+        // 진단 강제 설정과 실제 mesh 유무를 합쳐 현재 배경 렌더 경로를 표시한다.
         viewModel.diagnosticGridOnly || viewModel.liveMesh?.positions.isEmpty != false ? "격자" : "mesh"
     }
 
     private func age(_ time: TimeInterval, _ now: TimeInterval) -> String {
+        // 미수신 시각 0은 별도 문구로, 유효 시각은 현재 uptime과의 초 차이로 표현한다.
         time > 0 ? String(format: "%.1f초 전", max(0, now - time)) : "없음"
     }
 
     private var thermalLabel: String {
+        // ProcessInfo 열 상태를 녹화에서 즉시 읽을 수 있는 네 단계 레이블로 변환한다.
         switch ProcessInfo.processInfo.thermalState {
         case .nominal: "정상"
         case .fair: "상승"

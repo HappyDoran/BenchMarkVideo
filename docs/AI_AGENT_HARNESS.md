@@ -1,7 +1,7 @@
 ---
 title: AI Agent 작업 지원 체계
 kind: design
-last_verified: 2026-09-06
+last_verified: 2026-11-22
 ---
 
 # AI Agent 작업 지원 체계
@@ -100,7 +100,7 @@ Claude  → CLAUDE.md (symlink) → AGENTS.md → .claude/skills/<skill>/SKILL.m
 
 - CI가 없다. 검사는 로컬에서 수동 실행하며 커밋 전 실행은 `git-commit` skill의 절차에 의존한다.
 - 단위 테스트는 Model 계층만 대상이다. ViewModel 상태 전이와 세션 lifecycle은 실기기 수동에 의존한다.
-- 실기기 검증 결과는 커밋 본문과 `README.md` 매트릭스 형식에 의존한다. 별도 로그 문서는 없다.
+- 실기기 검증 결과는 커밋 본문과 `docs/DEVELOPMENT.md` 매트릭스 형식에 의존한다. 별도 로그 문서는 없다.
 - `last_verified`는 사람이 적는 날짜이며 만료 검사는 없다.
 - 문서 경로 검사는 인라인 코드의 확장자 있는 경로만 본다. 폴더 표기와 fenced code block 안은 검사하지 않는다.
 

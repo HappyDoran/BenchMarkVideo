@@ -45,23 +45,27 @@ nonisolated struct ScanDiagnosticWindow {
     mutating func receive() { received += 1 }
 
     mutating func record(now: TimeInterval, callbackMs: Double, allowed: Bool) {
+        // 첫 처리 프레임의 시각을 현재 0.5초 집계 창 시작점으로 고정한다.
         if start == nil { start = now }
         processed += 1
         sumMs += callbackMs
         maxMs = max(maxMs, callbackMs)
         if allowed {
+            // 0.5초 이하 간격으로 이어진 누적 허용 프레임만 연속 시간에 더한다.
             if let previousAllowed, now >= previousAllowed, now - previousAllowed <= 0.5 {
                 continuousSeconds += now - previousAllowed
             } else { continuousSeconds = 0 }
             previousAllowed = now
             longestSeconds = max(longestSeconds, continuousSeconds)
         } else {
+            // 게이트가 닫힌 순간 연속 구간을 끊어 pause와 tracking hold를 구분한다.
             continuousSeconds = 0
             previousAllowed = nil
         }
     }
 
     mutating func publish(now: TimeInterval) -> (received: Int, processed: Int, mean: Double, max: Double)? {
+        // 최소 0.5초와 한 개 이상의 처리 표본이 모일 때만 UI용 창 통계를 발행한다.
         guard let start, now - start >= 0.5, processed > 0 else { return nil }
         let result = (received, processed, sumMs / Double(processed), maxMs)
         self.start = now
@@ -114,15 +118,18 @@ nonisolated final class ScanDiagnosticsCollector {
     }
 
     func begin() -> Probe {
+        // signpost 구간과 systemUptime 시작값을 함께 묶어 같은 콜백의 종료 시점에 사용한다.
         Probe(signpost: signposter.beginInterval("frameCallback"),
               start: ProcessInfo.processInfo.systemUptime)
     }
 
     /// 창이 닫히면 발행할 값을 돌려준다.
     func end(_ probe: Probe, context: FrameContext) -> ScanDiagnostics? {
+        // Instruments 구간을 닫고 벽시계 변경 영향을 받지 않는 systemUptime으로 소요 시간을 구한다.
         signposter.endInterval("frameCallback", probe.signpost)
         let now = ProcessInfo.processInfo.systemUptime
         let elapsedMs = (now - probe.start) * 1000
+        // 최근 60개까지만 보관해 백분위 계산의 메모리와 정렬 비용을 제한한다.
         callbackMs.append(elapsedMs)
         if callbackMs.count > 60 { callbackMs.removeFirst(callbackMs.count - 60) }
         window.record(now: now, callbackMs: elapsedMs, allowed: context.allowed)
@@ -144,9 +151,11 @@ nonisolated final class ScanDiagnosticsCollector {
                 callbackMs.removeAll(keepingCapacity: true)
             }
         }
+        // 아직 0.5초 창이 닫히지 않았으면 UI 갱신 없이 계측만 계속 누적한다.
         guard let published = window.publish(now: now) else { return nil }
         let memory = Self.footprintMB()
         peakMB = max(peakMB, memory)
+        // 현재 프레임 문맥과 창 통계를 하나의 불변 전달용 값으로 복사한다.
         var value = ScanDiagnostics()
         value.timestamp = now
         value.frameTimestamp = context.timestamp
@@ -178,6 +187,7 @@ nonisolated final class ScanDiagnosticsCollector {
 
     /// 현재 프로세스 물리 메모리 사용량(MB). 실패 시 -1.
     private static func footprintMB() -> Double {
+        // Mach task_info가 요구하는 구조체와 정수 word 개수를 준비한다.
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(
             MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
@@ -186,6 +196,7 @@ nonisolated final class ScanDiagnosticsCollector {
                 task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
             }
         }
+        // 조회 성공 시 물리 footprint를 MiB로 변환하고 실패는 -1로 명시한다.
         return kr == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
     }
 }
